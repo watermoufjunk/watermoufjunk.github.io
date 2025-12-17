@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stream Player</title>
+    <!-- Using a reliable CDN for mpegts.js -->
+    <script src="https://unpkg.com/mpegts.js/dist/mpegts.js"></script>
+    
+    <style>
+        :root {
+            --accent-color: #3b82f6;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        .video-container {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            background: radial-gradient(circle, #111 0%, #000 100%);
+        }
+
+        #videoElement {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+
+        /* Unmute Overlay - Appears if unmuted autoplay is blocked */
+        #unmuteOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            z-index: 100;
+            transition: background 0.3s ease;
+        }
+
+        #unmuteOverlay:hover {
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        .unmute-btn {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 20px 40px;
+            border-radius: 50px;
+            color: white;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 600;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        /* Hidden logic components */
+        #statusOverlay, .url-input-container, #logcatbox {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="video-container" id="container">
+        <video name="videoElement" id="videoElement" playsinline webkit-playsinline controls>
+            Your browser doesn't support HTML5 video.
+        </video>
+
+        <!-- The interaction layer to allow audio -->
+        <div id="unmuteOverlay">
+            <div class="unmute-btn">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M11 5L6 9H2v6h4l5 4V5z"></path>
+                    <line x1="23" y1="9" x2="17" y2="15"></line>
+                    <line x1="17" y1="9" x2="23" y2="15"></line>
+                </svg>
+                Tap to Unmute
+            </div>
+        </div>
+    </div>
+
+    <div class="url-input-container">
+        <input id="sURL" type="text" value="https://stream-cdn-iad3.vaughnsoft.net/play/live_tbbtz.flv" />
+    </div>
+
+    <script>
+        var player = null;
+        const videoElement = document.getElementById('videoElement');
+        const unmuteOverlay = document.getElementById('unmuteOverlay');
+
+        function ls_get(key, def) {
+            try {
+                var ret = localStorage.getItem('player_demo.' + key);
+                return ret === null ? def : ret;
+            } catch (e) { return def; }
+        }
+
+        function toggleUnmute() {
+            videoElement.muted = false;
+            unmuteOverlay.style.display = 'none';
+        }
+
+        unmuteOverlay.addEventListener('click', toggleUnmute);
+
+        function player_load() {
+            if (typeof mpegts === 'undefined') {
+                console.error("mpegts library not loaded");
+                return;
+            }
+
+            var finalUrl = document.getElementById('sURL').value;
+            if (!finalUrl) return;
+
+            var mediaDataSource = { 
+                type: 'flv',
+                url: finalUrl,
+                isLive: true
+            };
+
+            if (player != null) {
+                player.unload();
+                player.detachMediaElement();
+                player.destroy();
+                player = null;
+            }
+
+            try {
+                player = mpegts.createPlayer(mediaDataSource, {
+                    enableWorker: true,
+                    lazyLoadMaxDuration: 3 * 60,
+                    seekType: 'range',
+                    liveBufferLatencyChasing: true,
+                    autoCleanupSourceBuffer: true
+                });
+
+                player.attachMediaElement(videoElement);
+                player.load();
+                
+                // 1. Try playing unmuted first
+                videoElement.muted = false;
+                
+                player.play().catch(e => {
+                    // 2. If blocked, play muted and show the unmute button
+                    console.log("Autoplay unmuted blocked. Falling back to muted autoplay.");
+                    videoElement.muted = true;
+                    unmuteOverlay.style.display = 'flex';
+                    player.play();
+                });
+
+            } catch (e) {
+                console.error("Initialization failed", e);
+            }
+        }
+
+        function loadSettings() {
+            var sURL = document.getElementById('sURL');
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlParamValue = urlParams.get('url');
+            
+            if (urlParamValue) {
+                sURL.value = decodeURIComponent(urlParamValue);
+            } else {
+                sURL.value = ls_get('sURL', sURL.value);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            loadSettings();
+            player_load();
+        });
+    </script>
+</body>
+</html>
