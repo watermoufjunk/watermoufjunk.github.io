@@ -1,211 +1,111 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- 
-      CRITICAL: This tells the browser NOT to send the GitHub URL to the video server. 
-      This often bypasses domain-based blocks/blacklists on GitHub Pages.
-    -->
-    <meta name="referrer" content="no-referrer">
-    
-    <title>Isolated Video Stream</title>
-    
-    <!-- Video Player Styles -->
-    <link rel="stylesheet" href="https://vaughn.live/5297699007/css/videoplayer_v9.css" />
-    <link rel="stylesheet" type="text/css" href="https://vaughn.live/5297699007/css/vsm_65_streamplayer.css" />
-    
-    <!-- Essential Scripts for Player -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://vaughn.live/1766003897/js/flv_epsilon.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.7.3/dist/mpegts.min.js"></script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Minimal Stream Player</title>
 
-    <style>
-        body, html {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            background-color: #000;
-            overflow: hidden;
-            font-family: sans-serif;
-        }
+  <!-- Keep ONLY the player CSS -->
+  <link rel="stylesheet" href="https://vaughn.live/5297699007/css/vsm_65_streamplayer.css" />
 
-        .video-container {
-            width: 100vw;
-            height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-        }
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #000;
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+    }
 
-        #MvnHlsPlayerLive {
-            width: 100% !important;
-            height: 100% !important;
-            max-width: 100%;
-            max-height: 100%;
-        }
+    /* Kill everything except the player */
+    .wrapper_header,
+    .wrapper_header2,
+    .vs_v9_app_menu_background,
+    .vs_v9_content_menu,
+    .vs_chatv9_gifs_display,
+    .vs_chatv9_gifs_background,
+    .vs_v9_modal,
+    .vs_v9_modal_subscribe_background,
+    .vs_v9_app_loading,
+    .wrapper_content h1,
+    .wrapper_content h2 {
+      display: none !important;
+    }
 
-        .MvnHlsPlayerOverlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            background: rgba(0,0,0,0.8);
-            color: white;
-            z-index: 10;
-            text-align: center;
-            padding: 20px;
-            box-sizing: border-box;
-        }
+    .wrapper_content {
+      margin: 0 !important;
+      padding: 0 !important;
+    }
 
-        #vs_player_tap_unmute {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            z-index: 100;
-            padding: 10px 20px;
-            background: #003399;
-            color: #fff;
-            border: none;
-            border-radius: 20px;
-            cursor: pointer;
-            font-weight: bold;
-        }
+    .vs_v9_stream_wrapper {
+      position: fixed !important;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      background: #000;
+    }
 
-        .error-hint {
-            font-size: 0.9em;
-            color: #ffca28;
-            margin-top: 15px;
-            max-width: 400px;
-        }
-    </style>
+    video {
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: contain;
+      background: #000;
+    }
+  </style>
 </head>
 <body>
 
-    <div class="video-container">
-        <button id="vs_player_tap_unmute" style="display:none;">Tap to Unmute</button>
-        
-        <div class="vidPlayer" style="width: 100%; height: 100%;">
-            <div id="MvnHlsPlayer_wrapper" style="width: 100%; height: 100%;">
-                <video class="MvnHlsPlayerLive" id="MvnHlsPlayerLive" webkit-playsinline playsinline autoplay></video>
-                
-                <div class="MvnHlsPlayerOverlay" id="loadingOverlay">
-                    <div class="MvnHlsPlayerLoading"></div>
-                    <div class="MvnHlsPlayerLoadingText" id="MvnHlsLoadingTxt">Initializing Stream...</div>
-                    <div id="errorMessage" class="error-hint" style="display:none;">
-                        Network Error: The stream server is rejecting the request. <br><br>
-                        Attempting to bypass domain restrictions...
-                    </div>
-                </div>
-            </div>
-        </div>
+  <!-- PLAYER ONLY -->
+  <div class="vs_v9_stream_wrapper">
+    <div class="vs_v9_stream_player">
+      <video
+        class="MvnHlsPlayerLive"
+        id="MvnHlsPlayerLive"
+        autoplay
+        playsinline
+        webkit-playsinline
+        controls
+      ></video>
     </div>
+  </div>
 
-    <script type="text/javascript">
-        function getUrlParameter(name) {
-            name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
-            var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
-            var results = regex.exec(location.search);
-            return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
-        }
+  <!-- Required player scripts ONLY -->
+  <script src="https://vaughn.live/1766003897/js/flv_epsilon.js"></script>
 
-        var mp4StreamName = getUrlParameter('stream') || "live_newzy";
-        var mp4Player = null;
-        var retryCount = 0;
-        var maxRetries = 5;
+  <script>
+    // minimal boot – same logic, no UI
+    var mp4StreamName = "live_thebunnyhole";
+    var mp4StreamUrl = "https://stream-cdn-iad3.vaughnsoft.net/play/" + mp4StreamName + ".flv";
 
-        function loadMp4Stream() {
-            var mp4StreamUrl = "https://stream-cdn-iad3.vaughnsoft.net/play/" + mp4StreamName + ".flv";
-            var videoElement = document.getElementById('MvnHlsPlayerLive');
+    var mp4Player = null;
 
-            try {
-                if (mp4Player != null) {
-                    unloadMp4Stream();
-                }
+    function loadStream() {
+      if (mp4Player) {
+        mp4Player.destroy();
+        mp4Player = null;
+      }
 
-                console.log("Connecting to " + mp4StreamUrl);
-                
-                mp4Player = mpegts.createPlayer({
-                    type: 'flv',
-                    isLive: true,
-                    url: mp4StreamUrl,
-                    enableWorker: true,
-                    autoCleanupSourceBuffer: true,
-                    stashInitialSize: 128
-                }, {
-                    reuseRedirectedURL: true,
-                    withCredentials: false
-                });
+      var video = document.getElementById("MvnHlsPlayerLive");
 
-                mp4Player.attachMediaElement(videoElement);
-                mp4Player.load();
+      mp4Player = mpegts.createPlayer({
+        type: 'flv',
+        isLive: true,
+        enableWorker: true,
+        autoCleanupSourceBuffer: true,
+        url: mp4StreamUrl
+      });
 
-                var playPromise = mp4Player.play();
-                if (playPromise !== undefined) {
-                    playPromise.then(() => {
-                        $("#loadingOverlay").fadeOut();
-                        $("#errorMessage").hide();
-                        retryCount = 0; // Reset on success
-                    }).catch(error => {
-                        console.log("Autoplay blocked");
-                        $("#vs_player_tap_unmute").show();
-                        videoElement.muted = true;
-                        mp4Player.play();
-                        $("#loadingOverlay").fadeOut();
-                    });
-                }
+      mp4Player.attachMediaElement(video);
+      mp4Player.load();
+      video.play().catch(() => {});
 
-                mp4Player.on(mpegts.Events.ERROR, function(type, detail, data) {
-                    console.error("Stream Error:", detail);
-                    if (detail === mpegts.ErrorDetails.NETWORK_ERROR) {
-                        $("#errorMessage").show();
-                        if (retryCount < maxRetries) {
-                            retryCount++;
-                            setTimeout(loadMp4Stream, 3000);
-                        }
-                    }
-                });
+      mp4Player.on(mpegts.Events.ERROR, function () {
+        setTimeout(loadStream, 1000);
+      });
+    }
 
-            } catch (e) {
-                console.error("Initialization Error:", e);
-            }
-        }
-
-        function unloadMp4Stream() {
-            if (mp4Player != null) {
-                try {
-                    mp4Player.pause();
-                    mp4Player.unload();
-                    mp4Player.detachMediaElement();
-                    mp4Player.destroy();
-                } catch(e) {}
-                mp4Player = null;
-            }
-        }
-
-        $("#vs_player_tap_unmute").click(function() {
-            document.getElementById('MvnHlsPlayerLive').muted = false;
-            $(this).hide();
-        });
-
-        $(document).ready(function() {
-            loadMp4Stream();
-            
-            setInterval(function() {
-                var video = document.getElementById('MvnHlsPlayerLive');
-                if (mp4Player && !video.paused && video.buffered.length > 0) {
-                    var diff = video.buffered.end(0) - video.currentTime;
-                    if (diff > 10) video.currentTime = video.buffered.end(0) - 1;
-                }
-            }, 5000);
-        });
-    </script>
+    loadStream();
+  </script>
 </body>
 </html>
