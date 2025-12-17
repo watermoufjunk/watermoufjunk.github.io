@@ -5,29 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- 
         CSP FIX: 
-        The error "violates ... media-src *" occurs because '*' excludes 'blob:'.
-        This meta tag explicitly adds 'blob:' to the allowed sources.
-        IMPORTANT: If you astill see the error on start.me, it means the platform 
-        is overriding this tag with a stricter server-side HTTP header.
+        Ensures 'blob:' scheme is explicitly allowed for media and workers.
     -->
     <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; media-src * blob: data:; worker-src * blob:; child-src * blob:; connect-src *;">
     
-    <title>mpegts.js demo</title>
-    <!-- Primary reliable source: cdnjs -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/mpegts.js/1.7.3/mpegts.min.js"></script>
+    <title>Stream Player (mpegts.js)</title>
+    <!-- Restored specific distribution URL -->
+    <script src="https://xqq.im/mpegts.js/dist/mpegts.js"></script>
+    
     <style>
-        .hidden { display: none; }
         .mainContainer { max-width: 800px; margin: 0 auto; font-family: sans-serif; padding: 20px; }
-        .centeredVideo { background: #000; width: 100%; height: auto; border: 1px solid #444; }
-        .url-input { margin-bottom: 10px; }
-        .url-input input { width: 70%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
-        .options { margin-bottom: 15px; font-size: 14px; background: #eee; padding: 10px; border-radius: 4px; }
-        .controls { margin-bottom: 15px; display: flex; gap: 5px; align-items: center; }
-        .logcatBox { width: 100%; font-family: monospace; font-size: 11px; background: #222; color: #0f0; border: 1px solid #000; padding: 10px; box-sizing: border-box; border-radius: 4px; }
-        button { padding: 8px 12px; cursor: pointer; border-radius: 4px; border: 1px solid #999; background: #fff; }
-        button:hover { background: #f0f0f0; }
-        #statusOverlay { color: #d9534f; font-weight: bold; margin-bottom: 10px; }
+        .centeredVideo { background: #000; width: 100%; height: auto; border: 1px solid #444; border-radius: 4px; }
+        .url-input-container { margin-bottom: 20px; }
+        .url-input-container input { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 16px; }
+        .logcatBox { width: 100%; font-family: monospace; font-size: 11px; background: #222; color: #0f0; border: 1px solid #000; padding: 10px; box-sizing: border-box; border-radius: 4px; margin-top: 20px; }
+        #statusOverlay { color: #5cb85c; font-weight: bold; margin-bottom: 10px; font-size: 14px; }
         .warning-box { background: #fff3cd; border: 1px solid #ffeeba; color: #856404; padding: 10px; margin-bottom: 15px; font-size: 13px; border-radius: 4px; display: none; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: #333; }
     </style>
 </head>
 <body>
@@ -35,37 +29,12 @@
         <div id="statusOverlay">Status: Ready</div>
         
         <div id="cspWarning" class="warning-box">
-            <strong>Security Alert:</strong> Your browser is blocking 'blob:' media. This is likely due to the parent site's (e.g. start.me) Content Security Policy. If unchecking "Enable Worker" doesn't help, you may need to host this outside of an iframe.
+            <strong>Security Alert:</strong> Your browser is blocking 'blob:' media. This is likely due to the parent site's (e.g. start.me) Content Security Policy. You may need to host this outside of an iframe.
         </div>
 
-        <div>
-            <div id="streamURL">
-                <div class="url-input">
-                    <label for="sURL"><strong>Stream URL:</strong></label><br>
-                    <input id="sURL" type="text" value="https://stream-cdn-iad3.vaughnsoft.net/play/live_tbbtz.flv" placeholder="Enter .flv or .ts URL" />
-                    <button onclick="switch_mds()">Switch to MediaDataSource</button>
-                </div>
-                <div class="options">
-                    <input type="checkbox" id="useProxy" checked />
-                    <label for="useProxy"><strong>Use corsproxy.io</strong> (Bypass CORS)</label>
-                    <br><br>
-                    <input type="checkbox" id="isLive" checked />
-                    <label for="isLive">isLive</label>
-                    <input type="checkbox" id="withCredentials" />
-                    <label for="withCredentials">withCredentials</label>
-                    <input type="checkbox" id="liveBufferLatencyChasing" checked />
-                    <label for="liveBufferLatencyChasing">Latency Chasing</label>
-                    <input type="checkbox" id="enableWorker" />
-                    <label for="enableWorker">Enable Worker (Disable if worker-src is blocked)</label>
-                </div>
-            </div>
-            <div id="mediaSourceURL" class="hidden">
-                <div class="url-input">
-                    <label for="msURL">MediaDataSource JsonURL:</label>
-                    <input id="msURL" type="text" value="" placeholder="http://127.0.0.1/flv/example.json" />
-                    <button onclick="switch_url()">Switch to URL</button>
-                </div>
-            </div>
+        <div class="url-input-container">
+            <label for="sURL">Stream URL (Press Enter to Load):</label>
+            <input id="sURL" type="text" value="https://stream-cdn-iad3.vaughnsoft.net/play/live_tbbtz.flv" placeholder="Enter .flv or .ts URL" />
         </div>
 
         <div class="video-container">
@@ -74,21 +43,10 @@
             </video>
         </div>
 
-        <div class="controls">
-            <button onclick="player_load()" style="background: #5cb85c; color: white; border: none;">Load & Play</button>
-            <button onclick="player_pause()">Pause</button>
-            <button onclick="player_destroy()" style="background: #d9534f; color: white; border: none;">Stop</button>
-            <span style="flex-grow: 1"></span>
-            <input style="width:60px; padding: 5px;" type="text" name="seekpoint" placeholder="0.0"/>
-            <button onclick="player_seekto()">Seek</button>
-        </div>
-
         <textarea name="logcatbox" class="logcatBox" rows="12" readonly placeholder="Engine logs will appear here..."></textarea>
     </div>
 
     <script>
-        var checkBoxFields = ['isLive', 'withCredentials', 'liveBufferLatencyChasing'];
-        var streamURL, mediaSourceURL;
         var player = null;
 
         function updateStatus(msg, isError = false) {
@@ -101,80 +59,37 @@
 
         function ls_get(key, def) {
             try {
-                var ret = localStorage.getItem('mpegts_demo.' + key);
+                var ret = localStorage.getItem('player_demo.' + key);
                 return ret === null ? def : ret;
             } catch (e) { return def; }
         }
 
         function ls_set(key, value) {
-            try { localStorage.setItem('mpegts_demo.' + key, value); } catch (e) {}
-        }
-
-        // Fallback loader if the first script fails
-        if (typeof mpegts === 'undefined') {
-            console.warn("Primary CDN failed, attempting fallback...");
-            var script = document.createElement('script');
-            script.src = "https://corsproxy.io/?https://xqq.im/mpegts.js/dist/mpegts.js";
-            document.head.appendChild(script);
+            try { localStorage.setItem('player_demo.' + key, value); } catch (e) {}
         }
 
         function player_load() {
             if (typeof mpegts === 'undefined') {
-                updateStatus("Library not loaded yet. Waiting for script...", true);
-                setTimeout(player_load, 1000);
+                updateStatus("Engine library not loaded.", true);
+                return;
+            }
+
+            var finalUrl = document.getElementById('sURL').value;
+            if (!finalUrl) {
+                updateStatus("Please enter a Stream URL", true);
                 return;
             }
 
             document.getElementById('cspWarning').style.display = 'none';
             updateStatus("Loading...");
-            
-            if (mediaSourceURL && !mediaSourceURL.classList.contains('hidden')) {
-                var url = document.getElementById('msURL').value;
-                if (!url) {
-                    updateStatus("Please enter a JSON URL", true);
-                    return;
-                }
-                
-                var finalMsURL = document.getElementById('useProxy').checked ? 
-                                 "https://corsproxy.io/?" + encodeURIComponent(url) : url;
 
-                var xhr = new XMLHttpRequest();
-                xhr.open('GET', finalMsURL, true);
-                xhr.onload = function (e) {
-                    try {
-                        var mediaDataSource = JSON.parse(xhr.response);
-                        player_load_mds(mediaDataSource);
-                    } catch(err) {
-                        updateStatus("Failed to parse JSON configuration", true);
-                        console.error("Failed to parse MDS JSON", err);
-                    }
-                }
-                xhr.onerror = () => updateStatus("Network error fetching JSON", true);
-                xhr.send();
-            } else {
-                var rawUrl = document.getElementById('sURL').value;
-                if (!rawUrl) {
-                    updateStatus("Please enter a Stream URL", true);
-                    return;
-                }
+            var mediaDataSource = { 
+                type: 'flv',
+                url: finalUrl,
+                isLive: true,
+                withCredentials: false
+            };
 
-                var useProxy = document.getElementById('useProxy').checked;
-                var finalUrl = useProxy ? "https://corsproxy.io/?" + encodeURIComponent(rawUrl) : rawUrl;
-
-                var mediaDataSource = { type: 'flv' };
-                
-                for (var i = 0; i < checkBoxFields.length; i++) {
-                    var field = checkBoxFields[i];
-                    var checkbox = document.getElementById(field);
-                    if (checkbox) mediaDataSource[field] = checkbox.checked;
-                }
-                
-                mediaDataSource['url'] = finalUrl;
-                player_load_mds(mediaDataSource);
-            }
-        }
-
-        function player_load_mds(mediaDataSource) {
             var element = document.getElementById('videoElement');
             if (player != null) {
                 player.unload();
@@ -183,14 +98,12 @@
                 player = null;
             }
 
-            var workerEnabled = document.getElementById('enableWorker').checked;
-
             try {
                 player = mpegts.createPlayer(mediaDataSource, {
-                    enableWorker: workerEnabled,
+                    enableWorker: true,
                     lazyLoadMaxDuration: 3 * 60,
                     seekType: 'range',
-                    liveBufferLatencyChasing: document.getElementById('liveBufferLatencyChasing').checked,
+                    liveBufferLatencyChasing: true
                 });
 
                 player.attachMediaElement(element);
@@ -198,17 +111,13 @@
                 
                 player.on(mpegts.Events.ERROR, function(type, details, data) {
                     updateStatus(`Error: ${type} (${details})`, true);
-                    console.error('mpegts error:', type, details, data);
-                    
-                    // Detect CSP issues via details or console side-effects
-                    if (details === 'NetworkError' || type === mpegts.ErrorTypes.NETWORK_ERROR) {
+                    if (details === 'NetworkError') {
                         document.getElementById('cspWarning').style.display = 'block';
                     }
                 });
 
                 player.on(mpegts.Events.MEDIA_INFO, (info) => {
                     updateStatus("Playing");
-                    document.getElementById('cspWarning').style.display = 'none';
                 });
 
                 if (mpegts.LoggingControl) {
@@ -221,82 +130,49 @@
                     });
                 }
 
+                player.play().catch(e => {
+                    updateStatus("Autoplay blocked. Please click play on video.", false);
+                });
+
             } catch (e) {
                 updateStatus("Engine initialization failed", true);
-                console.error(e);
             }
-        }
-
-        function player_start() { if (player) player.play(); }
-        function player_pause() { if (player) player.pause(); }
-        function player_destroy() {
-            if (player) {
-                player.pause();
-                player.unload();
-                player.detachMediaElement();
-                player.destroy();
-                player = null;
-                updateStatus("Stopped");
-            }
-        }
-
-        function player_seekto() {
-            var input = document.getElementsByName('seekpoint')[0];
-            if (player) player.currentTime = parseFloat(input.value);
-        }
-
-        function switch_url() {
-            streamURL.classList.remove('hidden');
-            mediaSourceURL.classList.add('hidden');
-        }
-
-        function switch_mds() {
-            streamURL.classList.add('hidden');
-            mediaSourceURL.classList.remove('hidden');
         }
 
         function loadSettings() {
-            for (var i = 0; i < checkBoxFields.length; i++) {
-                var field = checkBoxFields[i];
-                var checkbox = document.getElementById(field);
-                if (checkbox) {
-                    var c = ls_get(field, checkbox.checked ? '1' : '0');
-                    checkbox.checked = c === '1';
+            var sURL = document.getElementById('sURL');
+            if (sURL) {
+                // Check URL parameters first
+                const urlParams = new URLSearchParams(window.location.search);
+                const queryUrl = urlParams.get('url');
+                
+                if (queryUrl) {
+                    sURL.value = queryUrl;
+                } else {
+                    sURL.value = ls_get('sURL', sURL.value);
                 }
             }
-            var sURL = document.getElementById('sURL');
-            if (sURL) sURL.value = ls_get('sURL', sURL.value);
         }
 
         function saveSettings() {
-            for (var i = 0; i < checkBoxFields.length; i++) {
-                var field = checkBoxFields[i];
-                var checkbox = document.getElementById(field);
-                if (checkbox) ls_set(field, checkbox.checked ? '1' : '0');
-            }
             var sURL = document.getElementById('sURL');
-            if (sURL) ls_set('sURL', sURL.value);
+            if (sURL) {
+                ls_set('sURL', sURL.value);
+            }
         }
 
         document.addEventListener('DOMContentLoaded', function () {
-            streamURL = document.getElementById('streamURL');
-            mediaSourceURL = document.getElementById('mediaSourceURL');
-            
             loadSettings();
-
-            var checkLib = setInterval(() => {
-                if (typeof mpegts !== 'undefined') {
-                    document.title = "mpegts.js v" + mpegts.version;
-                    clearInterval(checkLib);
-                }
-            }, 500);
-
+            
             document.getElementById('sURL').onkeyup = function(event) {
                 if (event.key === 'Enter') {
                     saveSettings();
                     player_load();
                 }
             };
+
+            // Auto-load the saved or default URL on start
+            player_load();
         });
     </script>
 </body>
