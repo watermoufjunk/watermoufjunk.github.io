@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -89,23 +90,8 @@
     </div>
 
     <script type="text/javascript">
-        // Helper function to get URL parameters
-        function getUrlParameter(name) {
-            name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
-            var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
-            var results = regex.exec(location.search);
-            return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
-        }
-
-        // Core stream configuration: attempts to get 'stream' from URL, defaults to thebunnyhole
-        var mp4StreamName = getUrlParameter('stream') || "live_newzy";
-        
-        // Ensure the prefix 'live_' is present if it's a standard vaughn stream and not already included
-        if (mp4StreamName && !mp4StreamName.startsWith('live_') && mp4StreamName !== "thebunnyhole") {
-            // Note: You can customize this logic depending on if you want to pass 
-            // "thebunnyhole" or "live_thebunnyhole" in your URL
-        }
-
+        // Core stream configuration isolated from original page
+        var mp4StreamName = "live_thebunnyhole";
         var mp4Player = null;
         var flvPauseLoaded = false;
         var MvnPlayer = { isPlaying: false, isPauseClicked: false }; // Mock player state
@@ -176,11 +162,6 @@
 
         // Initialize on load
         $(document).ready(function() {
-            if (!mp4StreamName) {
-                $("#MvnHlsLoadingTxt").text("No stream specified.");
-                return;
-            }
-            
             loadMp4Stream();
             
             // Basic buffer monitor to prevent getting stuck
