@@ -3,202 +3,273 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stream Player</title>
-    <!-- Using a reliable CDN for mpegts.js -->
-    <script src="https://unpkg.com/mpegts.js/dist/mpegts.js"></script>
-    
+    <title>Low-Latency Stream Player</title>
+    <script src="https://cdn.jsdelivr.net/npm/mpegts.js@latest/dist/mpegts.min.js"></script>
     <style>
         :root {
-            --accent-color: #3b82f6;
+            --primary-color: #003399;
+            --bg-color: #0a0a0a;
         }
 
-        body, html {
+        body {
             margin: 0;
             padding: 0;
-            width: 100%;
-            height: 100%;
-            background-color: #000;
-            overflow: hidden;
+            background-color: var(--bg-color);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             display: flex;
             justify-content: center;
             align-items: center;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            height: 100vh;
+            color: white;
+            overflow: hidden;
         }
 
         .video-container {
-            width: 100vw;
-            height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
             position: relative;
-            background: radial-gradient(circle, #111 0%, #000 100%);
+            width: 100%;
+            max-width: 960px;
+            aspect-ratio: 16 / 9;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
         }
 
-        #videoElement {
+        video {
             width: 100%;
             height: 100%;
-            object-fit: contain;
             display: block;
         }
 
-        /* Unmute Overlay - Appears if unmuted autoplay is blocked */
-        #unmuteOverlay {
+        /* Loading Overlay */
+        #loadingOverlay {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.4);
-            display: none;
+            inset: 0;
+            background: rgba(0,0,0,0.9);
+            display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            cursor: pointer;
             z-index: 100;
-            transition: background 0.3s ease;
+            transition: opacity 0.5s ease;
         }
 
-        #unmuteOverlay:hover {
-            background: rgba(0, 0, 0, 0.2);
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top: 3px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 15px;
         }
 
-        .unmute-btn {
-            background: rgba(255, 255, 255, 0.15);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            padding: 20px 40px;
-            border-radius: 50px;
-            color: white;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            font-weight: 600;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-            animation: pulse 2s infinite;
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Unmute Button Overlay - Matches the original site style */
+        #unmuteOverlay {
+            position: absolute;
+            bottom: 70px;
+            left: 25px;
+            z-index: 201;
+            height: 40px;
+            width: 170px;
+            background-color: var(--primary-color);
+            color: #fff;
+            border: 0;
+            border-radius: 25px;
+            font-weight: bold;
+            font-variant-caps: small-caps;
+            font-size: 16px;
+            cursor: pointer;
+            display: none;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
         }
 
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
+        /* Stats Display */
+        #debugStats {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.5);
+            padding: 8px;
+            font-size: 11px;
+            border-radius: 4px;
+            pointer-events: none;
+            display: none;
+            z-index: 300;
         }
 
-        /* Hidden logic components */
-        #statusOverlay, .url-input-container, #logcatbox {
-            display: none !important;
+        .controls-hint {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            font-size: 11px;
+            color: rgba(255,255,255,0.4);
         }
     </style>
 </head>
-<body>
+<body onclick="forceInteractionPlay()">
 
-    <div class="video-container" id="container">
-        <video name="videoElement" id="videoElement" playsinline webkit-playsinline controls>
-            Your browser doesn't support HTML5 video.
-        </video>
+    <div class="video-container">
+        <!-- The Player -->
+        <video id="livePlayer" playsinline autoplay></video>
 
-        <!-- The interaction layer to allow audio -->
-        <div id="unmuteOverlay">
-            <div class="unmute-btn">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M11 5L6 9H2v6h4l5 4V5z"></path>
-                    <line x1="23" y1="9" x2="17" y2="15"></line>
-                    <line x1="17" y1="9" x2="23" y2="15"></line>
-                </svg>
-                Tap to Unmute
-            </div>
+        <!-- Loading View -->
+        <div id="loadingOverlay">
+            <div class="spinner"></div>
+            <div id="statusText">Initializing Stream...</div>
         </div>
-    </div>
 
-    <div class="url-input-container">
-        <input id="sURL" type="text" value="https://stream-cdn-iad3.vaughnsoft.net/play/live_tbbtz.flv" />
+        <!-- Unmute Button -->
+        <button id="unmuteOverlay">Tap to unmute</button>
+
+        <!-- Debug Stats -->
+        <div id="debugStats">
+            Buffer: <span id="statBuffer">0.00</span>s<br>
+            State: <span id="statState">Idle</span>
+        </div>
+
+        <div class="controls-hint">D for Debug | Stream: live_kofq</div>
     </div>
 
     <script>
-        var player = null;
-        const videoElement = document.getElementById('videoElement');
-        const unmuteOverlay = document.getElementById('unmuteOverlay');
+        const STREAM_URL = ''; 
+        
+        const videoElement = document.getElementById('livePlayer');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const unmuteBtn = document.getElementById('unmuteOverlay');
+        const statusText = document.getElementById('statusText');
+        const statBuffer = document.getElementById('statBuffer');
+        const statState = document.getElementById('statState');
 
-        function ls_get(key, def) {
-            try {
-                var ret = localStorage.getItem('player_demo.' + key);
-                return ret === null ? def : ret;
-            } catch (e) { return def; }
-        }
+        let player = null;
+        let hasInteracted = false;
 
-        function toggleUnmute() {
+        // Replicating the "force play" on click anywhere logic
+        function forceInteractionPlay() {
+            if (hasInteracted) return;
+            hasInteracted = true;
+            
+            console.log("Global interaction detected - priming audio...");
             videoElement.muted = false;
-            unmuteOverlay.style.display = 'none';
+            videoElement.volume = 1.0;
+            
+            if (player) {
+                player.play().catch(() => {});
+            }
+            unmuteBtn.style.display = 'none';
         }
 
-        unmuteOverlay.addEventListener('click', toggleUnmute);
-
-        function player_load() {
-            if (typeof mpegts === 'undefined') {
-                console.error("mpegts library not loaded");
+        function initPlayer() {
+            if (!mpegts.getFeatureList().mseLivePlayback) {
+                statusText.innerText = "Browser not supported.";
                 return;
             }
 
-            var finalUrl = document.getElementById('sURL').value;
-            if (!finalUrl) return;
-
-            var mediaDataSource = { 
+            player = mpegts.createPlayer({
                 type: 'flv',
-                url: finalUrl,
-                isLive: true
-            };
+                isLive: true,
+                url: STREAM_URL,
+            }, {
+                enableWorker: true,
+                enableStashBuffer: false,
+                stashInitialSize: 128,
+                autoCleanupSourceBuffer: true,
+                liveBufferLatencyChasing: true // Specific mpegts feature for no-buffer
+            });
 
-            if (player != null) {
+            player.attachMediaElement(videoElement);
+            player.load();
+
+            // Attempt Autoplay Logic
+            startPlayback();
+
+            // Listeners
+            player.on(mpegts.Events.ERROR, (type, detail, info) => {
+                if (type === mpegts.ErrorTypes.NETWORK_ERROR) {
+                    reconnect();
+                }
+            });
+
+            videoElement.addEventListener('playing', () => {
+                loadingOverlay.style.opacity = '0';
+                setTimeout(() => { loadingOverlay.style.display = 'none'; }, 500);
+                statState.innerText = "Live";
+            });
+        }
+
+        async function startPlayback() {
+            // Step 1: Try playing unmuted immediately
+            videoElement.muted = false;
+            videoElement.volume = 1.0;
+
+            try {
+                await player.play();
+                console.log("Unmuted autoplay success!");
+            } catch (err) {
+                console.warn("Unmuted autoplay blocked. Falling back to muted autoplay.");
+                
+                // Step 2: Fallback to muted autoplay to ensure stream starts
+                videoElement.muted = true;
+                try {
+                    await player.play();
+                    unmuteBtn.style.display = 'block';
+                } catch (mutedErr) {
+                    console.error("Critical: Even muted autoplay failed.", mutedErr);
+                    statusText.innerText = "Click anywhere to start the stream";
+                }
+            }
+        }
+
+        function reconnect() {
+            console.log("Network error - rebuilding player...");
+            if (player) {
                 player.unload();
                 player.detachMediaElement();
                 player.destroy();
                 player = null;
             }
+            initPlayer();
+        }
+
+        // Buffer Management (No-Buffer Sync)
+        setInterval(() => {
+            if (!player || videoElement.paused) return;
 
             try {
-                player = mpegts.createPlayer(mediaDataSource, {
-                    enableWorker: true,
-                    lazyLoadMaxDuration: 3 * 60,
-                    seekType: 'range',
-                    liveBufferLatencyChasing: true,
-                    autoCleanupSourceBuffer: true
-                });
+                const buffered = videoElement.buffered;
+                if (buffered.length > 0) {
+                    const end = buffered.end(buffered.length - 1);
+                    const current = videoElement.currentTime;
+                    const diff = end - current;
 
-                player.attachMediaElement(videoElement);
-                player.load();
-                
-                // 1. Try playing unmuted first
-                videoElement.muted = false;
-                
-                player.play().catch(e => {
-                    // 2. If blocked, play muted and show the unmute button
-                    console.log("Autoplay unmuted blocked. Falling back to muted autoplay.");
-                    videoElement.muted = true;
-                    unmuteOverlay.style.display = 'flex';
-                    player.play();
-                });
+                    statBuffer.innerText = diff.toFixed(2);
 
-            } catch (e) {
-                console.error("Initialization failed", e);
+                    // If latency exceeds 3 seconds, catch up immediately
+                    if (diff > 3.0) {
+                        videoElement.currentTime = end - 0.2;
+                    }
+                }
+            } catch (e) {}
+        }, 1000);
+
+        // Manual Unmute
+        unmuteBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent body click firing twice
+            videoElement.muted = false;
+            videoElement.volume = 1.0;
+            unmuteBtn.style.display = 'none';
+            hasInteracted = true;
+        });
+
+        window.addEventListener('DOMContentLoaded', initPlayer);
+        
+        window.addEventListener('keydown', (e) => {
+            if (e.key.toLowerCase() === 'd') {
+                const debug = document.getElementById('debugStats');
+                debug.style.display = debug.style.display === 'none' ? 'block' : 'none';
             }
-        }
-
-        function loadSettings() {
-            var sURL = document.getElementById('sURL');
-            const urlParams = new URLSearchParams(window.location.search);
-            const urlParamValue = urlParams.get('url');
-            
-            if (urlParamValue) {
-                sURL.value = decodeURIComponent(urlParamValue);
-            } else {
-                sURL.value = ls_get('sURL', sURL.value);
-            }
-        }
-
-        document.addEventListener('DOMContentLoaded', function () {
-            loadSettings();
-            player_load();
         });
     </script>
 </body>
