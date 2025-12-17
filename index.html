@@ -9,53 +9,59 @@
     -->
     <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; media-src * blob: data:; worker-src * blob:; child-src * blob:; connect-src *;">
     
-    <title>Stream Player (mpegts.js)</title>
-    <!-- Restored specific distribution URL -->
+    <title>Stream Player</title>
     <script src="https://xqq.im/mpegts.js/dist/mpegts.js"></script>
     
     <style>
-        .mainContainer { max-width: 800px; margin: 0 auto; font-family: sans-serif; padding: 20px; }
-        .centeredVideo { background: #000; width: 100%; height: auto; border: 1px solid #444; border-radius: 4px; }
-        .url-input-container { margin-bottom: 20px; }
-        .url-input-container input { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 16px; }
-        .logcatBox { width: 100%; font-family: monospace; font-size: 11px; background: #222; color: #0f0; border: 1px solid #000; padding: 10px; box-sizing: border-box; border-radius: 4px; margin-top: 20px; }
-        #statusOverlay { color: #5cb85c; font-weight: bold; margin-bottom: 10px; font-size: 14px; }
-        .warning-box { background: #fff3cd; border: 1px solid #ffeeba; color: #856404; padding: 10px; margin-bottom: 15px; font-size: 13px; border-radius: 4px; display: none; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; color: #333; }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .video-container {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #videoElement {
+            width: 100%;
+            height: 100%;
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        /* Hidden UI elements for debugging if needed via Inspect Element */
+        #statusOverlay, .url-input-container, .logcatBox, .warning-box {
+            display: none !important;
+        }
     </style>
 </head>
 <body>
-    <div class="mainContainer">
-        <div id="statusOverlay">Status: Ready</div>
-        
-        <div id="cspWarning" class="warning-box">
-            <strong>Security Alert:</strong> Your browser is blocking 'blob:' media. This is likely due to the parent site's (e.g. start.me) Content Security Policy. You may need to host this outside of an iframe.
-        </div>
 
-        <div class="url-input-container">
-            <label for="sURL">Stream URL (Press Enter to Load):</label>
-            <input id="sURL" type="text" value="" placeholder="Enter .flv or .ts URL" />
-        </div>
-
-        <div class="video-container">
-            <video name="videoElement" id="videoElement" class="centeredVideo" controls autoplay muted>
-                Your browser doesn't support HTML5 video.
-            </video>
-        </div>
-
-        <textarea name="logcatbox" class="logcatBox" rows="12" readonly placeholder="Engine logs will appear here..."></textarea>
+    <div class="video-container">
+        <video name="videoElement" id="videoElement" controls autoplay muted>
+            Your browser doesn't support HTML5 video.
+        </video>
     </div>
+
+    <!-- Hidden elements kept for logic compatibility -->
+    <div class="url-input-container">
+        <input id="sURL" type="text" value="" />
+    </div>
+    <div id="statusOverlay"></div>
+    <div id="cspWarning"></div>
+    <textarea id="logcatbox"></textarea>
 
     <script>
         var player = null;
-
-        function updateStatus(msg, isError = false) {
-            const status = document.getElementById('statusOverlay');
-            if (status) {
-                status.innerText = "Status: " + msg;
-                status.style.color = isError ? "#d9534f" : "#5cb85c";
-            }
-        }
 
         function ls_get(key, def) {
             try {
@@ -64,24 +70,11 @@
             } catch (e) { return def; }
         }
 
-        function ls_set(key, value) {
-            try { localStorage.setItem('player_demo.' + key, value); } catch (e) {}
-        }
-
         function player_load() {
-            if (typeof mpegts === 'undefined') {
-                updateStatus("Engine library not loaded.", true);
-                return;
-            }
+            if (typeof mpegts === 'undefined') return;
 
             var finalUrl = document.getElementById('sURL').value;
-            if (!finalUrl) {
-                updateStatus("Please enter a Stream URL", true);
-                return;
-            }
-
-            document.getElementById('cspWarning').style.display = 'none';
-            updateStatus("Loading...");
+            if (!finalUrl) return;
 
             var mediaDataSource = { 
                 type: 'flv',
@@ -109,69 +102,31 @@
                 player.attachMediaElement(element);
                 player.load();
                 
-                player.on(mpegts.Events.ERROR, function(type, details, data) {
-                    updateStatus(`Error: ${type} (${details})`, true);
-                    if (details === 'NetworkError') {
-                        document.getElementById('cspWarning').style.display = 'block';
-                    }
-                });
-
-                player.on(mpegts.Events.MEDIA_INFO, (info) => {
-                    updateStatus("Playing");
-                });
-
-                if (mpegts.LoggingControl) {
-                    mpegts.LoggingControl.addLogListener(function(type, str) {
-                        var logbox = document.getElementsByName('logcatbox')[0];
-                        if (logbox) {
-                            logbox.value = logbox.value + str + '\n';
-                            logbox.scrollTop = logbox.scrollHeight;
-                        }
-                    });
-                }
-
                 player.play().catch(e => {
-                    updateStatus("Autoplay blocked. Please click play on video.", false);
+                    console.log("Autoplay blocked. User interaction required.");
                 });
 
             } catch (e) {
-                updateStatus("Engine initialization failed", true);
+                console.error("Engine initialization failed", e);
             }
         }
 
         function loadSettings() {
             var sURL = document.getElementById('sURL');
             if (sURL) {
-                // Check URL parameters first
                 const urlParams = new URLSearchParams(window.location.search);
-                const queryUrl = urlParams.get('url');
+                const urlParamValue = urlParams.get('url');
                 
-                if (queryUrl) {
-                    sURL.value = queryUrl;
+                if (urlParamValue) {
+                    sURL.value = decodeURIComponent(urlParamValue);
                 } else {
                     sURL.value = ls_get('sURL', sURL.value);
                 }
             }
         }
 
-        function saveSettings() {
-            var sURL = document.getElementById('sURL');
-            if (sURL) {
-                ls_set('sURL', sURL.value);
-            }
-        }
-
         document.addEventListener('DOMContentLoaded', function () {
             loadSettings();
-            
-            document.getElementById('sURL').onkeyup = function(event) {
-                if (event.key === 'Enter') {
-                    saveSettings();
-                    player_load();
-                }
-            };
-
-            // Auto-load the saved or default URL on start
             player_load();
         });
     </script>
