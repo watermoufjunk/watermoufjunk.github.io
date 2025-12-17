@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Low-Latency Stream Player</title>
+    <title>No-Buffer Stream Player</title>
     <script src="https://cdn.jsdelivr.net/npm/mpegts.js@latest/dist/mpegts.min.js"></script>
     <style>
         :root {
@@ -41,7 +41,6 @@
             display: block;
         }
 
-        /* Loading Overlay */
         #loadingOverlay {
             position: absolute;
             inset: 0;
@@ -51,7 +50,6 @@
             justify-content: center;
             align-items: center;
             z-index: 100;
-            transition: opacity 0.5s ease;
         }
 
         .spinner {
@@ -66,8 +64,7 @@
 
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        /* Unmute Button Overlay - Matches the original site style */
-        #unmuteOverlay {
+        #vs_player_tap_unmute {
             position: absolute;
             bottom: 70px;
             left: 25px;
@@ -86,19 +83,23 @@
             box-shadow: 0 4px 15px rgba(0,0,0,0.4);
         }
 
-        /* Stats Display */
         #debugStats {
             position: absolute;
             top: 10px;
             left: 10px;
-            background: rgba(0,0,0,0.5);
-            padding: 8px;
+            background: rgba(0,0,0,0.7);
+            padding: 12px;
             font-size: 11px;
             border-radius: 4px;
             pointer-events: none;
             display: none;
             z-index: 300;
+            min-width: 150px;
+            line-height: 1.5;
         }
+
+        .stat-row { display: flex; justify-content: space-between; gap: 10px; }
+        .stat-label { color: #aaa; }
 
         .controls-hint {
             position: absolute;
@@ -109,168 +110,176 @@
         }
     </style>
 </head>
-<body onclick="forceInteractionPlay()">
+<body onclick="MvnPlayer.ForceInteraction()">
 
     <div class="video-container">
-        <!-- The Player -->
-        <video id="livePlayer" playsinline autoplay></video>
+        <video id="MvnHlsPlayerLive" playsinline autoplay></video>
 
-        <!-- Loading View -->
         <div id="loadingOverlay">
             <div class="spinner"></div>
-            <div id="statusText">Initializing Stream...</div>
+            <div id="statusText">Adjusting bits and bytes...</div>
         </div>
 
-        <!-- Unmute Button -->
-        <button id="unmuteOverlay">Tap to unmute</button>
+        <button id="vs_player_tap_unmute">Tap to unmute</button>
 
-        <!-- Debug Stats -->
         <div id="debugStats">
-            Buffer: <span id="statBuffer">0.00</span>s<br>
-            State: <span id="statState">Idle</span>
+            <div class="stat-row"><span class="stat-label">Buffer:</span> <span id="statBuffer">0.00</span>s</div>
+            <div class="stat-row"><span class="stat-label">Latency Chasing:</span> <span id="statChase">Active</span></div>
+            <div class="stat-row"><span class="stat-label">Resolution:</span> <span id="statRes">-</span></div>
+            <div class="stat-row"><span class="stat-label">Speed:</span> <span id="statSpeed">1.0x</span></div>
         </div>
 
-        <div class="controls-hint">D for Debug | Stream: live_kofq</div>
+        <div class="controls-hint">Press 'D' for Stats | Stream: live_kofq</div>
     </div>
 
     <script>
-        const STREAM_URL = 'https://stream-cdn-iad3.vaughnsoft.net/play/live_kofq.flv'; 
+        const STREAM_URL = 'https://stream-cdn-iad3.vaughnsoft.net/play/live_thebunnyhole.flv';
         
-        const videoElement = document.getElementById('livePlayer');
-        const loadingOverlay = document.getElementById('loadingOverlay');
-        const unmuteBtn = document.getElementById('unmuteOverlay');
-        const statusText = document.getElementById('statusText');
-        const statBuffer = document.getElementById('statBuffer');
-        const statState = document.getElementById('statState');
+        const MvnPlayer = {
+            player: null,
+            video: document.getElementById('MvnHlsPlayerLive'),
+            unmuteBtn: document.getElementById('vs_player_tap_unmute'),
+            hasInteracted: false,
+            isManuallyPaused: false,
 
-        let player = null;
-        let hasInteracted = false;
+            init() {
+                if (!mpegts.getFeatureList().mseLivePlayback) return;
 
-        // Replicating the "force play" on click anywhere logic
-        function forceInteractionPlay() {
-            if (hasInteracted) return;
-            hasInteracted = true;
-            
-            console.log("Global interaction detected - priming audio...");
-            videoElement.muted = false;
-            videoElement.volume = 1.0;
-            
-            if (player) {
-                player.play().catch(() => {});
-            }
-            unmuteBtn.style.display = 'none';
-        }
+                // AGGRESSIVE LOW-LATENCY CONFIGURATION
+                this.player = mpegts.createPlayer({
+                    type: 'flv',
+                    isLive: true,
+                    url: STREAM_URL,
+                }, {
+                    enableWorker: true,
+                    enableStashBuffer: false,        // Kill local browser cache
+                    stashInitialSize: 64,            // Start faster
+                    autoCleanupSourceBuffer: true,   // Clear memory
+                    liveBufferLatencyChasing: true,  // Enable built-in catchup
+                    liveBufferLatencyMaxLatency: 1.5, // Max delay allowed before chasing
+                    liveBufferLatencyMinLatency: 0.8, // Target latency
+                    lazyLoad: false
+                });
 
-        function initPlayer() {
-            if (!mpegts.getFeatureList().mseLivePlayback) {
-                statusText.innerText = "Browser not supported.";
-                return;
-            }
-
-            player = mpegts.createPlayer({
-                type: 'flv',
-                isLive: true,
-                url: STREAM_URL,
-            }, {
-                enableWorker: true,
-                enableStashBuffer: false,
-                stashInitialSize: 128,
-                autoCleanupSourceBuffer: true,
-                liveBufferLatencyChasing: true // Specific mpegts feature for no-buffer
-            });
-
-            player.attachMediaElement(videoElement);
-            player.load();
-
-            // Attempt Autoplay Logic
-            startPlayback();
-
-            // Listeners
-            player.on(mpegts.Events.ERROR, (type, detail, info) => {
-                if (type === mpegts.ErrorTypes.NETWORK_ERROR) {
-                    reconnect();
-                }
-            });
-
-            videoElement.addEventListener('playing', () => {
-                loadingOverlay.style.opacity = '0';
-                setTimeout(() => { loadingOverlay.style.display = 'none'; }, 500);
-                statState.innerText = "Live";
-            });
-        }
-
-        async function startPlayback() {
-            // Step 1: Try playing unmuted immediately
-            videoElement.muted = false;
-            videoElement.volume = 1.0;
-
-            try {
-                await player.play();
-                console.log("Unmuted autoplay success!");
-            } catch (err) {
-                console.warn("Unmuted autoplay blocked. Falling back to muted autoplay.");
+                this.player.attachMediaElement(this.video);
+                this.player.load();
                 
-                // Step 2: Fallback to muted autoplay to ensure stream starts
-                videoElement.muted = true;
+                this.setupListeners();
+                this.attemptAutoplay();
+                this.startSyncLoop();
+            },
+
+            setupListeners() {
+                this.player.on(mpegts.Events.ERROR, (e) => {
+                    console.log("Stream error, reconnecting...");
+                    this.reconnect();
+                });
+
+                this.player.on(mpegts.Events.MEDIA_INFO, (info) => {
+                    document.getElementById('statRes').innerText = info.width + 'x' + info.height;
+                });
+
+                this.video.addEventListener('playing', () => {
+                    document.getElementById('loadingOverlay').style.display = 'none';
+                });
+
+                this.video.addEventListener('pause', () => {
+                    // Check if stuck or manually paused
+                    setTimeout(() => {
+                        if (this.video.paused && !this.isManuallyPaused) {
+                            this.reconnect();
+                        }
+                    }, 3000);
+                });
+            },
+
+            async attemptAutoplay() {
+                this.video.muted = false;
+                this.video.volume = 1.0;
+
                 try {
-                    await player.play();
-                    unmuteBtn.style.display = 'block';
-                } catch (mutedErr) {
-                    console.error("Critical: Even muted autoplay failed.", mutedErr);
-                    statusText.innerText = "Click anywhere to start the stream";
+                    await this.player.play();
+                } catch (err) {
+                    this.video.muted = true;
+                    this.player.play();
+                    this.unmuteBtn.style.display = 'block';
                 }
-            }
-        }
+            },
 
-        function reconnect() {
-            console.log("Network error - rebuilding player...");
-            if (player) {
-                player.unload();
-                player.detachMediaElement();
-                player.destroy();
-                player = null;
-            }
-            initPlayer();
-        }
+            ForceInteraction() {
+                if (this.hasInteracted) return;
+                this.hasInteracted = true;
+                this.video.muted = false;
+                this.unmuteBtn.style.display = 'none';
+                this.player.play().catch(() => {});
+            },
 
-        // Buffer Management (No-Buffer Sync)
-        setInterval(() => {
-            if (!player || videoElement.paused) return;
-
-            try {
-                const buffered = videoElement.buffered;
-                if (buffered.length > 0) {
-                    const end = buffered.end(buffered.length - 1);
-                    const current = videoElement.currentTime;
-                    const diff = end - current;
-
-                    statBuffer.innerText = diff.toFixed(2);
-
-                    // If latency exceeds 3 seconds, catch up immediately
-                    if (diff > 3.0) {
-                        videoElement.currentTime = end - 0.2;
-                    }
+            reconnect() {
+                if (this.player) {
+                    this.player.unload();
+                    this.player.detachMediaElement();
+                    this.player.destroy();
                 }
-            } catch (e) {}
-        }, 1000);
+                document.getElementById('loadingOverlay').style.display = 'flex';
+                this.init();
+            },
 
-        // Manual Unmute
-        unmuteBtn.addEventListener('click', (e) => {
-            e.stopPropagation(); // Prevent body click firing twice
-            videoElement.muted = false;
-            videoElement.volume = 1.0;
-            unmuteBtn.style.display = 'none';
-            hasInteracted = true;
+            startSyncLoop() {
+                // HIGH FREQUENCY SYNC (Matches original site's aggressive logic)
+                setInterval(() => {
+                    if (!this.player || this.video.paused) return;
+
+                    try {
+                        const buffered = this.video.buffered;
+                        if (buffered.length > 0) {
+                            const end = buffered.end(buffered.length - 1);
+                            const current = this.video.currentTime;
+                            const diff = end - current;
+
+                            document.getElementById('statBuffer').innerText = diff.toFixed(2);
+
+                            // AGGRESSIVE LATENCY CATCHUP
+                            if (diff > 2.0) {
+                                // Hard jump to live edge
+                                this.video.currentTime = end - 0.3;
+                                document.getElementById('statSpeed').innerText = "JUMP";
+                            } else if (diff > 1.2) {
+                                // Subtle speed increase (1.1x) to catch up smoothly
+                                this.video.playbackRate = 1.1;
+                                document.getElementById('statSpeed').innerText = "1.1x";
+                            } else {
+                                this.video.playbackRate = 1.0;
+                                document.getElementById('statSpeed').innerText = "1.0x";
+                            }
+                        }
+                    } catch (e) {}
+                }, 300);
+            }
+        };
+
+        // UI Event Listeners
+        MvnPlayer.unmuteBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            MvnPlayer.ForceInteraction();
         });
 
-        window.addEventListener('DOMContentLoaded', initPlayer);
-        
         window.addEventListener('keydown', (e) => {
             if (e.key.toLowerCase() === 'd') {
                 const debug = document.getElementById('debugStats');
                 debug.style.display = debug.style.display === 'none' ? 'block' : 'none';
             }
         });
+
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                // Jump to live immediately when tab becomes visible
+                if (MvnPlayer.video.buffered.length > 0) {
+                    MvnPlayer.video.currentTime = MvnPlayer.video.buffered.end(0) - 0.3;
+                }
+            }
+        });
+
+        window.addEventListener('DOMContentLoaded', () => MvnPlayer.init());
     </script>
 </body>
 </html>
