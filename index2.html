@@ -3,6 +3,12 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- 
+      CRITICAL: This tells the browser NOT to send the GitHub URL to the video server. 
+      This often bypasses domain-based blocks/blacklists on GitHub Pages.
+    -->
+    <meta name="referrer" content="no-referrer">
+    
     <title>Isolated Video Stream</title>
     
     <!-- Video Player Styles -->
@@ -12,7 +18,6 @@
     <!-- Essential Scripts for Player -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://vaughn.live/1766003897/js/flv_epsilon.js"></script>
-    <!-- mpegts is required for the flv playback logic used in the original script -->
     <script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.7.3/dist/mpegts.min.js"></script>
 
     <style>
@@ -23,15 +28,16 @@
             height: 100%;
             background-color: #000;
             overflow: hidden;
+            font-family: sans-serif;
         }
 
-        /* Force video to fill container */
         .video-container {
             width: 100vw;
             height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
+            position: relative;
         }
 
         #MvnHlsPlayerLive {
@@ -51,9 +57,12 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            background: rgba(0,0,0,0.7);
+            background: rgba(0,0,0,0.8);
             color: white;
             z-index: 10;
+            text-align: center;
+            padding: 20px;
+            box-sizing: border-box;
         }
 
         #vs_player_tap_unmute {
@@ -69,6 +78,13 @@
             cursor: pointer;
             font-weight: bold;
         }
+
+        .error-hint {
+            font-size: 0.9em;
+            color: #ffca28;
+            margin-top: 15px;
+            max-width: 400px;
+        }
     </style>
 </head>
 <body>
@@ -83,19 +99,28 @@
                 <div class="MvnHlsPlayerOverlay" id="loadingOverlay">
                     <div class="MvnHlsPlayerLoading"></div>
                     <div class="MvnHlsPlayerLoadingText" id="MvnHlsLoadingTxt">Initializing Stream...</div>
+                    <div id="errorMessage" class="error-hint" style="display:none;">
+                        Network Error: The stream server is rejecting the request. <br><br>
+                        Attempting to bypass domain restrictions...
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
     <script type="text/javascript">
-        // Core stream configuration isolated from original page
-        var mp4StreamName = "live_thebunnyhole";
-        var mp4Player = null;
-        var flvPauseLoaded = false;
-        var MvnPlayer = { isPlaying: false, isPauseClicked: false }; // Mock player state
+        function getUrlParameter(name) {
+            name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+            var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+            var results = regex.exec(location.search);
+            return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+        }
 
-        // Re-implementing the stream loading logic
+        var mp4StreamName = getUrlParameter('stream') || "live_thebunnyhole";
+        var mp4Player = null;
+        var retryCount = 0;
+        var maxRetries = 5;
+
         function loadMp4Stream() {
             var mp4StreamUrl = "https://stream-cdn-iad3.vaughnsoft.net/play/" + mp4StreamName + ".flv";
             var videoElement = document.getElementById('MvnHlsPlayerLive');
@@ -112,19 +137,24 @@
                     isLive: true,
                     url: mp4StreamUrl,
                     enableWorker: true,
-                    autoCleanupSourceBuffer: true
+                    autoCleanupSourceBuffer: true,
+                    stashInitialSize: 128
+                }, {
+                    reuseRedirectedURL: true,
+                    withCredentials: false
                 });
 
                 mp4Player.attachMediaElement(videoElement);
                 mp4Player.load();
 
-                // Handle Autoplay policy
                 var playPromise = mp4Player.play();
                 if (playPromise !== undefined) {
                     playPromise.then(() => {
                         $("#loadingOverlay").fadeOut();
+                        $("#errorMessage").hide();
+                        retryCount = 0; // Reset on success
                     }).catch(error => {
-                        console.log("Autoplay blocked, showing unmute button");
+                        console.log("Autoplay blocked");
                         $("#vs_player_tap_unmute").show();
                         videoElement.muted = true;
                         mp4Player.play();
@@ -132,10 +162,15 @@
                     });
                 }
 
-                // Error Handling
-                mp4Player.on(mpegts.Events.ERROR, function(e) {
-                    console.error("Stream Error:", e);
-                    setTimeout(loadMp4Stream, 2000); // Retry on error
+                mp4Player.on(mpegts.Events.ERROR, function(type, detail, data) {
+                    console.error("Stream Error:", detail);
+                    if (detail === mpegts.ErrorDetails.NETWORK_ERROR) {
+                        $("#errorMessage").show();
+                        if (retryCount < maxRetries) {
+                            retryCount++;
+                            setTimeout(loadMp4Stream, 3000);
+                        }
+                    }
                 });
 
             } catch (e) {
@@ -145,34 +180,29 @@
 
         function unloadMp4Stream() {
             if (mp4Player != null) {
-                mp4Player.detachMediaElement();
-                mp4Player.unload();
-                mp4Player.destroy();
+                try {
+                    mp4Player.pause();
+                    mp4Player.unload();
+                    mp4Player.detachMediaElement();
+                    mp4Player.destroy();
+                } catch(e) {}
                 mp4Player = null;
             }
         }
 
-        // Unmute interaction
         $("#vs_player_tap_unmute").click(function() {
-            var video = document.getElementById('MvnHlsPlayerLive');
-            video.muted = false;
+            document.getElementById('MvnHlsPlayerLive').muted = false;
             $(this).hide();
         });
 
-        // Initialize on load
         $(document).ready(function() {
             loadMp4Stream();
             
-            // Basic buffer monitor to prevent getting stuck
             setInterval(function() {
-                if (mp4Player && !mp4Player.paused) {
-                    try {
-                        var video = document.getElementById('MvnHlsPlayerLive');
-                        var diff = video.buffered.end(0) - video.currentTime;
-                        if (diff > 15) { // If buffer is too far ahead, sync it
-                            video.currentTime = video.buffered.end(0) - 1;
-                        }
-                    } catch(e) {}
+                var video = document.getElementById('MvnHlsPlayerLive');
+                if (mp4Player && !video.paused && video.buffered.length > 0) {
+                    var diff = video.buffered.end(0) - video.currentTime;
+                    if (diff > 10) video.currentTime = video.buffered.end(0) - 1;
                 }
             }, 5000);
         });
