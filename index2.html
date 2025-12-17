@@ -1,285 +1,201 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
+    <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>No-Buffer Stream Player</title>
-    <script src="https://cdn.jsdelivr.net/npm/mpegts.js@latest/dist/mpegts.min.js"></script>
-    <style>
-        :root {
-            --primary-color: #003399;
-            --bg-color: #0a0a0a;
-        }
+    <title>Isolated Video Stream</title>
+    
+    <!-- Video Player Styles -->
+    <link rel="stylesheet" href="https://vaughn.live/5297699007/css/videoplayer_v9.css" />
+    <link rel="stylesheet" type="text/css" href="https://vaughn.live/5297699007/css/vsm_65_streamplayer.css" />
+    
+    <!-- Essential Scripts for Player -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://vaughn.live/1766003897/js/flv_epsilon.js"></script>
+    <!-- mpegts is required for the flv playback logic used in the original script -->
+    <script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.7.3/dist/mpegts.min.js"></script>
 
-        body {
+    <style>
+        body, html {
             margin: 0;
             padding: 0;
-            background-color: var(--bg-color);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            color: white;
-            overflow: hidden;
-        }
-
-        .video-container {
-            position: relative;
-            width: 100%;
-            max-width: 960px;
-            aspect-ratio: 16 / 9;
-            background: #000;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
-        }
-
-        video {
             width: 100%;
             height: 100%;
-            display: block;
+            background-color: #000;
+            overflow: hidden;
         }
 
-        #loadingOverlay {
+        /* Force video to fill container */
+        .video-container {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #MvnHlsPlayerLive {
+            width: 100% !important;
+            height: 100% !important;
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        .MvnHlsPlayerOverlay {
             position: absolute;
-            inset: 0;
-            background: rgba(0,0,0,0.9);
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             display: flex;
             flex-direction: column;
-            justify-content: center;
             align-items: center;
-            z-index: 100;
+            justify-content: center;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            z-index: 10;
         }
-
-        .spinner {
-            width: 50px;
-            height: 50px;
-            border: 3px solid rgba(255,255,255,0.1);
-            border-top: 3px solid white;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-bottom: 15px;
-        }
-
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
         #vs_player_tap_unmute {
             position: absolute;
-            bottom: 70px;
-            left: 25px;
-            z-index: 201;
-            height: 40px;
-            width: 170px;
-            background-color: var(--primary-color);
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            padding: 10px 20px;
+            background: #003399;
             color: #fff;
-            border: 0;
-            border-radius: 25px;
-            font-weight: bold;
-            font-variant-caps: small-caps;
-            font-size: 16px;
+            border: none;
+            border-radius: 20px;
             cursor: pointer;
-            display: none;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
-        }
-
-        #debugStats {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            background: rgba(0,0,0,0.7);
-            padding: 12px;
-            font-size: 11px;
-            border-radius: 4px;
-            pointer-events: none;
-            display: none;
-            z-index: 300;
-            min-width: 150px;
-            line-height: 1.5;
-        }
-
-        .stat-row { display: flex; justify-content: space-between; gap: 10px; }
-        .stat-label { color: #aaa; }
-
-        .controls-hint {
-            position: absolute;
-            bottom: 10px;
-            right: 10px;
-            font-size: 11px;
-            color: rgba(255,255,255,0.4);
+            font-weight: bold;
         }
     </style>
 </head>
-<body onclick="MvnPlayer.ForceInteraction()">
+<body>
 
     <div class="video-container">
-        <video id="MvnHlsPlayerLive" playsinline autoplay></video>
-
-        <div id="loadingOverlay">
-            <div class="spinner"></div>
-            <div id="statusText">Adjusting bits and bytes...</div>
+        <button id="vs_player_tap_unmute" style="display:none;">Tap to Unmute</button>
+        
+        <div class="vidPlayer" style="width: 100%; height: 100%;">
+            <div id="MvnHlsPlayer_wrapper" style="width: 100%; height: 100%;">
+                <video class="MvnHlsPlayerLive" id="MvnHlsPlayerLive" webkit-playsinline playsinline autoplay></video>
+                
+                <div class="MvnHlsPlayerOverlay" id="loadingOverlay">
+                    <div class="MvnHlsPlayerLoading"></div>
+                    <div class="MvnHlsPlayerLoadingText" id="MvnHlsLoadingTxt">Initializing Stream...</div>
+                </div>
+            </div>
         </div>
-
-        <button id="vs_player_tap_unmute">Tap to unmute</button>
-
-        <div id="debugStats">
-            <div class="stat-row"><span class="stat-label">Buffer:</span> <span id="statBuffer">0.00</span>s</div>
-            <div class="stat-row"><span class="stat-label">Latency Chasing:</span> <span id="statChase">Active</span></div>
-            <div class="stat-row"><span class="stat-label">Resolution:</span> <span id="statRes">-</span></div>
-            <div class="stat-row"><span class="stat-label">Speed:</span> <span id="statSpeed">1.0x</span></div>
-        </div>
-
-        <div class="controls-hint">Press 'D' for Stats | Stream: live_kofq</div>
     </div>
 
-    <script>
-        const STREAM_URL = 'https://stream-cdn-iad3.vaughnsoft.net/play/live_thebunnyhole.flv';
+    <script type="text/javascript">
+        // Helper function to get URL parameters
+        function getUrlParameter(name) {
+            name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+            var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+            var results = regex.exec(location.search);
+            return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+        }
+
+        // Core stream configuration: attempts to get 'stream' from URL, defaults to thebunnyhole
+        var mp4StreamName = getUrlParameter('stream') || "live_newzy";
         
-        const MvnPlayer = {
-            player: null,
-            video: document.getElementById('MvnHlsPlayerLive'),
-            unmuteBtn: document.getElementById('vs_player_tap_unmute'),
-            hasInteracted: false,
-            isManuallyPaused: false,
+        // Ensure the prefix 'live_' is present if it's a standard vaughn stream and not already included
+        if (mp4StreamName && !mp4StreamName.startsWith('live_') && mp4StreamName !== "thebunnyhole") {
+            // Note: You can customize this logic depending on if you want to pass 
+            // "thebunnyhole" or "live_thebunnyhole" in your URL
+        }
 
-            init() {
-                if (!mpegts.getFeatureList().mseLivePlayback) return;
+        var mp4Player = null;
+        var flvPauseLoaded = false;
+        var MvnPlayer = { isPlaying: false, isPauseClicked: false }; // Mock player state
 
-                // AGGRESSIVE LOW-LATENCY CONFIGURATION
-                this.player = mpegts.createPlayer({
+        // Re-implementing the stream loading logic
+        function loadMp4Stream() {
+            var mp4StreamUrl = "https://stream-cdn-iad3.vaughnsoft.net/play/" + mp4StreamName + ".flv";
+            var videoElement = document.getElementById('MvnHlsPlayerLive');
+
+            try {
+                if (mp4Player != null) {
+                    unloadMp4Stream();
+                }
+
+                console.log("Connecting to " + mp4StreamUrl);
+                
+                mp4Player = mpegts.createPlayer({
                     type: 'flv',
                     isLive: true,
-                    url: STREAM_URL,
-                }, {
+                    url: mp4StreamUrl,
                     enableWorker: true,
-                    enableStashBuffer: false,        // Kill local browser cache
-                    stashInitialSize: 64,            // Start faster
-                    autoCleanupSourceBuffer: true,   // Clear memory
-                    liveBufferLatencyChasing: true,  // Enable built-in catchup
-                    liveBufferLatencyMaxLatency: 1.5, // Max delay allowed before chasing
-                    liveBufferLatencyMinLatency: 0.8, // Target latency
-                    lazyLoad: false
+                    autoCleanupSourceBuffer: true
                 });
 
-                this.player.attachMediaElement(this.video);
-                this.player.load();
-                
-                this.setupListeners();
-                this.attemptAutoplay();
-                this.startSyncLoop();
-            },
+                mp4Player.attachMediaElement(videoElement);
+                mp4Player.load();
 
-            setupListeners() {
-                this.player.on(mpegts.Events.ERROR, (e) => {
-                    console.log("Stream error, reconnecting...");
-                    this.reconnect();
-                });
-
-                this.player.on(mpegts.Events.MEDIA_INFO, (info) => {
-                    document.getElementById('statRes').innerText = info.width + 'x' + info.height;
-                });
-
-                this.video.addEventListener('playing', () => {
-                    document.getElementById('loadingOverlay').style.display = 'none';
-                });
-
-                this.video.addEventListener('pause', () => {
-                    // Check if stuck or manually paused
-                    setTimeout(() => {
-                        if (this.video.paused && !this.isManuallyPaused) {
-                            this.reconnect();
-                        }
-                    }, 3000);
-                });
-            },
-
-            async attemptAutoplay() {
-                this.video.muted = false;
-                this.video.volume = 1.0;
-
-                try {
-                    await this.player.play();
-                } catch (err) {
-                    this.video.muted = true;
-                    this.player.play();
-                    this.unmuteBtn.style.display = 'block';
+                // Handle Autoplay policy
+                var playPromise = mp4Player.play();
+                if (playPromise !== undefined) {
+                    playPromise.then(() => {
+                        $("#loadingOverlay").fadeOut();
+                    }).catch(error => {
+                        console.log("Autoplay blocked, showing unmute button");
+                        $("#vs_player_tap_unmute").show();
+                        videoElement.muted = true;
+                        mp4Player.play();
+                        $("#loadingOverlay").fadeOut();
+                    });
                 }
-            },
 
-            ForceInteraction() {
-                if (this.hasInteracted) return;
-                this.hasInteracted = true;
-                this.video.muted = false;
-                this.unmuteBtn.style.display = 'none';
-                this.player.play().catch(() => {});
-            },
+                // Error Handling
+                mp4Player.on(mpegts.Events.ERROR, function(e) {
+                    console.error("Stream Error:", e);
+                    setTimeout(loadMp4Stream, 2000); // Retry on error
+                });
 
-            reconnect() {
-                if (this.player) {
-                    this.player.unload();
-                    this.player.detachMediaElement();
-                    this.player.destroy();
-                }
-                document.getElementById('loadingOverlay').style.display = 'flex';
-                this.init();
-            },
+            } catch (e) {
+                console.error("Initialization Error:", e);
+            }
+        }
 
-            startSyncLoop() {
-                // HIGH FREQUENCY SYNC (Matches original site's aggressive logic)
-                setInterval(() => {
-                    if (!this.player || this.video.paused) return;
+        function unloadMp4Stream() {
+            if (mp4Player != null) {
+                mp4Player.detachMediaElement();
+                mp4Player.unload();
+                mp4Player.destroy();
+                mp4Player = null;
+            }
+        }
 
+        // Unmute interaction
+        $("#vs_player_tap_unmute").click(function() {
+            var video = document.getElementById('MvnHlsPlayerLive');
+            video.muted = false;
+            $(this).hide();
+        });
+
+        // Initialize on load
+        $(document).ready(function() {
+            if (!mp4StreamName) {
+                $("#MvnHlsLoadingTxt").text("No stream specified.");
+                return;
+            }
+            
+            loadMp4Stream();
+            
+            // Basic buffer monitor to prevent getting stuck
+            setInterval(function() {
+                if (mp4Player && !mp4Player.paused) {
                     try {
-                        const buffered = this.video.buffered;
-                        if (buffered.length > 0) {
-                            const end = buffered.end(buffered.length - 1);
-                            const current = this.video.currentTime;
-                            const diff = end - current;
-
-                            document.getElementById('statBuffer').innerText = diff.toFixed(2);
-
-                            // AGGRESSIVE LATENCY CATCHUP
-                            if (diff > 2.0) {
-                                // Hard jump to live edge
-                                this.video.currentTime = end - 0.3;
-                                document.getElementById('statSpeed').innerText = "JUMP";
-                            } else if (diff > 1.2) {
-                                // Subtle speed increase (1.1x) to catch up smoothly
-                                this.video.playbackRate = 1.1;
-                                document.getElementById('statSpeed').innerText = "1.1x";
-                            } else {
-                                this.video.playbackRate = 1.0;
-                                document.getElementById('statSpeed').innerText = "1.0x";
-                            }
+                        var video = document.getElementById('MvnHlsPlayerLive');
+                        var diff = video.buffered.end(0) - video.currentTime;
+                        if (diff > 15) { // If buffer is too far ahead, sync it
+                            video.currentTime = video.buffered.end(0) - 1;
                         }
-                    } catch (e) {}
-                }, 300);
-            }
-        };
-
-        // UI Event Listeners
-        MvnPlayer.unmuteBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            MvnPlayer.ForceInteraction();
-        });
-
-        window.addEventListener('keydown', (e) => {
-            if (e.key.toLowerCase() === 'd') {
-                const debug = document.getElementById('debugStats');
-                debug.style.display = debug.style.display === 'none' ? 'block' : 'none';
-            }
-        });
-
-        document.addEventListener('visibilitychange', () => {
-            if (!document.hidden) {
-                // Jump to live immediately when tab becomes visible
-                if (MvnPlayer.video.buffered.length > 0) {
-                    MvnPlayer.video.currentTime = MvnPlayer.video.buffered.end(0) - 0.3;
+                    } catch(e) {}
                 }
-            }
+            }, 5000);
         });
-
-        window.addEventListener('DOMContentLoaded', () => MvnPlayer.init());
     </script>
 </body>
 </html>
