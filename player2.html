@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Minimal Stream Player</title>
+
+  <style>
+    /* CRITICAL FIX: We set html/body to 100% 
+       but we allow the parent (iframe) to control the actual pixels.
+    */
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #000;
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* FIX: Changed from 'fixed' to 'relative'. 
+       'fixed' with 100vw/vh is what causes the 'cut off' or overlay issues 
+       when embedding because it breaks out of the iframe bounds.
+    */
+    .vs_v9_stream_wrapper {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .vs_v9_stream_player {
+      width: 100%;
+      height: 100%;
+    }
+
+    video {
+      width: 100% !important;
+      height: 100% !important;
+      /* 'contain' ensures the whole video is visible. 
+         'cover' would fill the space but cut off edges. 
+      */
+      object-fit: contain; 
+      background: #000;
+    }
+
+    /* Kill extra UI elements if they leak in from external scripts */
+    .wrapper_header, .wrapper_header2, .vs_v9_app_menu_background,
+    .vs_v9_content_menu, .vs_v9_modal, .vs_v9_app_loading {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="vs_v9_stream_wrapper">
+    <div class="vs_v9_stream_player">
+      <video
+        class="MvnHlsPlayerLive"
+        id="MvnHlsPlayerLive"
+        autoplay
+        playsinline
+        webkit-playsinline
+        controls
+      ></video>
+    </div>
+  </div>
+
+  <!-- Required player script -->
+  <script src="https://vaughn.live/1766003897/js/flv_epsilon.js"></script>
+
+  <script>
+    // 1. Get stream name from URL (?stream=channelname)
+    const params = new URLSearchParams(window.location.search);
+    // Default to a known stream if none provided for preview purposes
+    var mp4StreamName = params.get("stream") || "none"; 
+    var mp4StreamUrl = "https://stream-cdn-iad3.vaughnsoft.net/play/live_" + mp4StreamName + ".flv";
+
+    var mp4Player = null;
+
+    function loadStream() {
+      if (mp4Player) {
+        mp4Player.destroy();
+        mp4Player = null;
+      }
+
+      var video = document.getElementById("MvnHlsPlayerLive");
+
+      // Check if mpegts is loaded
+      if (typeof mpegts !== 'undefined') {
+        mp4Player = mpegts.createPlayer({
+          type: 'flv',
+          isLive: true,
+          enableWorker: true,
+          autoCleanupSourceBuffer: true,
+          url: mp4StreamUrl
+        });
+
+        mp4Player.attachMediaElement(video);
+        mp4Player.load();
+        
+        // Handle autoplay restrictions
+        video.play().catch(function(error) {
+          console.log("Autoplay prevented. User interaction required.");
+        });
+
+        mp4Player.on(mpegts.Events.ERROR, function () {
+          setTimeout(loadStream, 2000);
+        });
+      } else {
+        console.error("mpegts library not loaded");
+        setTimeout(loadStream, 2000);
+      }
+    }
+
+    // Initialize on load
+    window.onload = loadStream;
+  </script>
+
+  <!-- 
+    NOTE FOR YOUR MAIN WEBSITE:
+    When you embed this file, use a container with an aspect-ratio.
+    Example:
+    
+    <div style="width: 100%; max-width: 900px; margin: auto; aspect-ratio: 16/9; background: #000;">
+       <iframe src="player.html?stream=YOUR_STREAM" style="width:100%; height:100%; border:none;" allowfullscreen></iframe>
+    </div>
+  -->
+</body>
+</html>
