@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live TV Guide</title>
+    <!-- HLS.js for cross-browser m3u8 support -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <style>
+        :root {
+            /* Tubi Color Palette */
+            --bg-color: #0f1114;       /* Main app background */
+            --sidebar-bg: #0f1114;     /* Seamless sidebar */
+            --header-bg: #0f1114;      /* Seamless header */
+            --card-bg: #1a1d24;        /* Dark slate card */
+            --card-hover: #262a33;     /* Slightly lighter on hover */
+            --text-primary: #ffffff;
+            --text-secondary: #9ca3af;
+            --accent-color: #fa2e38;   /* Tubi Red */
+            --border-color: #2a2e36;
+            --focus-glow: rgba(250, 46, 56, 0.4);
+            
+            /* Dimensions */
+            --channel-col-width: 130px; 
+            --row-height: 70px;
+            --header-height: 110px; 
+        }
+
+        * {
+            box-sizing: border-box;
+            scrollbar-width: thin;
+            scrollbar-color: #333 var(--bg-color);
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* --- Focus Styles for D-Pad --- */
+        .focusable {
+            outline: none;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+        }
+
+        .focusable.focused {
+            box-shadow: 0 0 0 3px #fff, 0 0 20px var(--focus-glow);
+            z-index: 50 !important;
+            transform: scale(1.04);
+            background-color: var(--card-hover) !important;
+        }
+
+        /* --- Header Section --- */
+        header {
+            height: var(--header-height);
+            background-color: var(--header-bg);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 0;
+            z-index: 40;
+            flex-shrink: 0;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+
+        .header-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 24px 5px;
+        }
+
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logo-area {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        h1 { 
+            margin: 0; 
+            font-size: 1.5rem; 
+            font-weight: 800; 
+            letter-spacing: -0.5px; 
+            color: #fff;
+        }
+        
+        .live-badge { 
+            color: var(--accent-color);
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            padding-top: 4px;
+        }
+
+        .date-display { 
+            color: var(--text-secondary); 
+            font-size: 0.85rem; 
+            font-weight: 500; 
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .timezone-badge {
+            background-color: #2a2e36;
+            color: #ccc;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        /* Search Bar */
+        .search-container {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .search-input {
+            background-color: #1a1d24;
+            border: 1px solid #3a3f4b;
+            color: #fff;
+            padding: 6px 12px 6px 34px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            outline: none;
+            width: 200px;
+            transition: all 0.2s ease;
+        }
+
+        .search-input:focus {
+            border-color: var(--accent-color);
+            width: 280px;
+            background-color: #2a2e36;
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 10px;
+            width: 16px;
+            height: 16px;
+            fill: #9ca3af;
+            pointer-events: none;
+        }
+
+        /* Category Pills */
+        .category-scroll-container {
+            display: flex;
+            align-items: center;
+            overflow-x: auto;
+            padding: 10px 24px 15px;
+            gap: 10px;
+            white-space: nowrap;
+            position: relative;
+            scrollbar-width: none;
+        }
+        .category-scroll-container::-webkit-scrollbar { display: none; }
+
+        .cat-pill {
+            background-color: transparent;
+            color: var(--text-secondary);
+            border: 1px solid transparent;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .cat-pill.active {
+            background-color: rgba(255,255,255,0.1);
+            color: #fff;
+            border-color: rgba(255,255,255,0.2);
+        }
+
+        /* Stronger visual for active selection */
+        .cat-pill.active.selected-border {
+            border-color: #fff;
+            background-color: rgba(255,255,255,0.15);
+        }
+
+        .cat-pill.focused {
+            background-color: #fff !important;
+            color: #000 !important;
+            box-shadow: 0 0 15px rgba(255,255,255,0.5);
+        }
+
+        /* --- Main EPG Layout --- */
+        #epg-container {
+            flex-grow: 1;
+            position: relative;
+            overflow: scroll;
+            display: grid;
+            grid-template-columns: var(--channel-col-width) 1fr; 
+            grid-template-rows: 40px 1fr; 
+            background-color: var(--bg-color);
+        }
+
+        .corner-spacer {
+            position: sticky;
+            top: 0;
+            left: 0;
+            z-index: 30;
+            background-color: var(--bg-color);
+            border-bottom: 1px solid #1a1d24; 
+        }
+
+        #timeline-header {
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            background-color: var(--bg-color);
+            height: 40px;
+            overflow: hidden; 
+            border-bottom: 1px solid #1a1d24;
+        }
+
+        .time-slot {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            padding-left: 12px;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+        }
+
+        #channels-sidebar {
+            grid-column: 1;
+            grid-row: 2;
+            position: sticky;
+            left: 0;
+            z-index: 10;
+            background-color: var(--sidebar-bg);
+            padding-bottom: 20px;
+        }
+
+        .channel-row {
+            height: var(--row-height);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 0 12px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--text-secondary);
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            line-height: 1.2;
+        }
+
+        .channel-row.focused {
+            color: #fff;
+        }
+
+        .channel-logo {
+            max-width: 95px;
+            max-height: 48px;
+            object-fit: contain;
+            opacity: 0.8;
+            transition: opacity 0.2s ease;
+        }
+        .channel-row.focused .channel-logo {
+            opacity: 1;
+        }
+
+        #program-grid {
+            grid-column: 2;
+            grid-row: 2;
+            position: relative;
+            background-color: var(--bg-color);
+            padding-bottom: 20px;
+        }
+
+        .program-row {
+            height: var(--row-height);
+            position: relative;
+            width: 100%;
+        }
+
+        .program-card {
+            position: absolute;
+            top: 4px;
+            bottom: 4px;
+            background-color: var(--card-bg);
+            border-radius: 6px;
+            padding: 10px 14px;
+            overflow: hidden;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            white-space: nowrap;
+        }
+        
+        .program-title {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 4px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .program-time {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        /* --- Player Overlay --- */
+        .player-overlay {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            width: 480px;
+            max-width: 90vw;
+            background-color: #1a1d24;
+            z-index: 200;
+            display: none;
+            flex-direction: column;
+            border-radius: 12px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.9), 0 0 0 1px #333;
+            overflow: hidden;
+            animation: slideUp 0.3s ease-out;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .player-header {
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #111317;
+            border-bottom: 1px solid #000;
+        }
+
+        .player-header-title {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: #ccc;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .player-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .player-mode-btn {
+            background: #2a2e36;
+            border: 1px solid #3a3f4b;
+            color: #9ca3af;
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            text-transform: uppercase;
+        }
+
+        .player-mode-btn.focused {
+            background: #fff;
+            color: #000;
+        }
+
+        .close-btn {
+            background: transparent;
+            border: none;
+            color: #999;
+            padding: 4px;
+            cursor: pointer;
+            font-size: 1.2rem;
+        }
+
+        .video-container {
+            width: 100%;
+            aspect-ratio: 16/9;
+            background: black;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #main-video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+            position: relative;
+            z-index: 5;
+            background: transparent;
+        }
+
+        .video-placeholder {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: 1;
+            filter: blur(20px) brightness(0.4);
+            transform: scale(1.1);
+            transition: opacity 1s ease;
+        }
+
+        .player-meta-block {
+            padding: 20px;
+            background: #1a1d24;
+        }
+
+        .player-title {
+            font-size: 1.3rem;
+            font-weight: 800;
+            margin-bottom: 4px;
+            color: #fff;
+        }
+
+        .player-desc {
+            font-size: 0.95rem;
+            color: #9ca3af;
+            line-height: 1.6;
+            margin-bottom: 16px;
+        }
+
+        .badges-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .badge-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.75rem;
+        }
+
+        .badge {
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 0.7rem;
+        }
+
+        .badge-channel { background-color: var(--accent-color); color: white; }
+        .badge-show { background-color: #2d3139; color: #cbd5e1; border: 1px solid #3f444e; }
+
+        #loading {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-top">
+            <div class="logo-area">
+                <h1>tubi</h1> 
+                <span class="live-badge">Live TV</span>
+            </div>
+            
+            <div class="header-controls">
+                <div class="search-container">
+                    <svg class="search-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"></path></svg>
+                    <input type="text" id="search-bar" class="search-input" placeholder="Search..." oninput="handleSearch(this.value)">
+                </div>
+                <select id="source-select" class="source-select" onchange="handleSourceChange(this.value)"></select>
+                <div id="current-date-display" class="date-display">Loading...</div>
+            </div>
+        </div>
+
+        <div id="category-pills" class="category-scroll-container">
+            <!-- Populated dynamically -->
+        </div>
+    </header>
+
+    <div id="loading">
+        <p id="loading-text">Initializing Guide...</p>
+    </div>
+
+    <div id="epg-container" style="display: none;">
+        <div class="corner-spacer"></div>
+        <div id="timeline-header"></div>
+        <div id="channels-sidebar"></div>
+        <div id="program-grid"></div>
+    </div>
+
+    <div id="player-overlay" class="player-overlay">
+        <div class="player-header">
+            <span id="player-source-label" class="player-header-title">Now Playing</span>
+            <div class="player-actions">
+                <button id="player-external-btn" class="player-mode-btn focusable" onclick="openStreamInNewTab()">External</button>
+                <button id="player-mode-toggle" class="player-mode-btn focusable" onclick="togglePlayerMode()">Engine: NATIVE</button>
+                <button class="close-btn focusable" onclick="closePlayer()">&#10005;</button>
+            </div>
+        </div>
+        
+        <div class="player-content">
+            <div class="video-container">
+                <img id="video-placeholder" src="" class="video-placeholder" alt="">
+                <!-- Added 'muted' to help bypass iframe autoplay blocks -->
+                <video id="main-video" controls autoplay muted playsinline>
+                    Your browser does not support the video tag.
+                </video>
+            </div>
+            
+            <div class="player-meta-block">
+                <div id="player-title" class="player-title"></div>
+                <div id="player-subtitle" class="player-subtitle" style="font-size: 1rem; color: var(--text-secondary); margin-bottom: 8px;"></div>
+                <div id="player-desc" class="player-desc"></div>
+                <div id="player-badges" class="badges-container"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- MACRO CATEGORY LOGIC ---
+        function getMajorMacroMatch(rawCategory) {
+            const c = String(rawCategory).toLowerCase();
+            for (const rule of RULES) {
+                for (const key of rule.match) {
+                    if (c.includes(key)) return rule.macro;
+                }
+            }
+            return null;
+        }
+
+        function mapToMacroCategory(rawCategory) {
+            return getMajorMacroMatch(rawCategory) || MACRO_CATEGORIES.MISC;
+        }
+
+        // --- PLUTO API HELPERS ---
+        function getStreamUrl(channelRawId) {
+            return "https://stitcher-ipv4.pluto.tv/v1/stitch/embed/hls/channel/" + channelRawId + "/master.m3u8?deviceType=samsung-tvplus&deviceMake=samsung&deviceModel=samsung&deviceVersion=unknown&appVersion=unknown&deviceLat=0&deviceLon=0&deviceDNT=%7BTARGETOPT%7D&deviceId=%7BPSID%7D&advertisingId=%7BPSID%7D&us_privacy=1YNY&samsung_app_domain=%7BAPP_DOMAIN%7D&samsung_app_name=%7BAPP_NAME%7D&profileLimit=&profileFloor=&embedPartner=samsung-tvplus&";
+        }
+
+        // --- CONFIGURATION ---
+        const PROXY_URL = 'https://corsproxy.io/?';
+        const HOURS_TO_SHOW = 1.5; 
+        const MIN_PIXELS_PER_HOUR = 320;
+
+        const MACRO_CATEGORIES = {
+            MOVIES_DRAMA: 'Movies & Drama',
+            TV_ENTERTAINMENT: 'TV & Entertainment',
+            REALITY_LIFESTYLE: 'Reality & Lifestyle',
+            NEWS_INFO: 'News & Information',
+            SPORTS: 'Sports',
+            KIDS_FAMILY: 'Kids & Family',
+            DOCS_EDU: 'Documentary & Educational',
+            MISC: 'Miscellaneous'
+        };
+
+        const RULES = [
+            { macro: MACRO_CATEGORIES.SPORTS, match: ['sport','sports','football','baseball','basketball','soccer','hockey','golf','tennis','wrestling','boxing','mma','martial','motorsport','motor','racing','cycling','bicycle','olympic','track','field','ski','snow','surf','volleyball','rugby','cricket','lacrosse','handball','pickleball','esport','gaming','pregame','postgame','playoff','highlights'] },
+            { macro: MACRO_CATEGORIES.KIDS_FAMILY, match: ['children','kids','family','teen','teens','ages','cartoon','cartoons','puppets','animal tales'] },
+            { macro: MACRO_CATEGORIES.NEWS_INFO, match: ['news','newscast','current affairs','politics','political','government','public affairs','commentary','debate','interview','business','finance','economy','weather','law','legal','investigative','journalism','radio'] },
+            { macro: MACRO_CATEGORIES.DOCS_EDU, match: ['documentary','docudrama','history','science','nature','wildlife','biography','true crime','psychology'] },
+            { macro: MACRO_CATEGORIES.REALITY_LIFESTYLE, match: ['reality','game show','dating','competition','makeover','cooking','food','travel','home', 'garden','gardening','fashion','fitness','health','how-to','instructional','auction','collectibles','shopping','parenting','pets','paranormal','lifestyle'] },
+            { macro: MACRO_CATEGORIES.MOVIES_DRAMA, match: ['movie','movies','film','drama','crime','thriller','horror','romance','sci-fi','science fiction','fantasy','action','adventure','war','western','mystery','suspense','biographical','historical','cult','classic','foreign','bollywood','zombie','supernatural'] }
+        ];
+
+        let channels = [];
+        let programs = [];
+        let minTime, maxTime;
+        let currentFilter = 'all';
+        let searchQuery = '';
+        let currentSource = null; 
+        let currentPPM = MIN_PIXELS_PER_HOUR / 60; 
+        let hls = null; 
+        let playerEngine = 'native'; 
+        let currentlyPlayingProgram = null;
+        let currentFocus = null;
+
+        const EPG_SOURCES = [
+            { name: 'Pluto', url: 'https://raw.githubusercontent.com/matthuisman/i.mjh.nz/refs/heads/master/PlutoTV/us.xml.gz' },
+            { name: 'Pluto (NoCords)', url: 'https://nocords.xyz/pluto/epg.xml' },
+            { name: 'Plex', url: 'https://raw.githubusercontent.com/matthuisman/i.mjh.nz/refs/heads/master/Plex/us.xml.gz' },
+            { name: 'EPG Share US2', url: 'https://epgshare01.online/epgshare01/epg_ripper_US2.xml.gz' }
+        ];
+
+        document.addEventListener('DOMContentLoaded', init);
+        document.addEventListener('keydown', handleGlobalKeyDown);
+
+        async function init() {
+            updateClock();
+            setInterval(updateClock, 60000);
+            populateSourceSelect();
+            await loadEPGSource(EPG_SOURCES[0]);
+            
+            const video = document.getElementById('main-video');
+            const placeholder = document.getElementById('video-placeholder');
+            video.addEventListener('playing', () => { placeholder.style.opacity = '0'; });
+            video.addEventListener('stalled', () => { placeholder.style.opacity = '1'; });
+        }
+
+        function populateSourceSelect() {
+            const select = document.getElementById('source-select');
+            select.innerHTML = '';
+            EPG_SOURCES.forEach(s => {
+                const opt = document.createElement('option');
+                opt.value = s.name; opt.innerText = s.name; select.appendChild(opt);
+            });
+        }
+
+        async function handleSourceChange(sourceName) {
+            const source = EPG_SOURCES.find(s => s.name === sourceName);
+            if (source) await loadEPGSource(source);
+        }
+
+        async function loadEPGSource(source) {
+            document.getElementById('loading').style.display = 'flex';
+            document.getElementById('epg-container').style.display = 'none';
+            channels = []; programs = [];
+            currentSource = source; currentFilter = 'all'; searchQuery = '';
+            document.getElementById('search-bar').value = '';
+
+            try {
+                const response = await fetch(PROXY_URL + encodeURIComponent(source.url));
+                let xmlText;
+                if (source.url.endsWith('.gz')) {
+                    const ds = new DecompressionStream('gzip');
+                    xmlText = await new Response(response.body.pipeThrough(ds)).text();
+                } else {
+                    xmlText = await response.text();
+                }
+                await parseXMLAsync(xmlText, source.name);
+                setupGridTimeBoundaries();
+                populateCategoryPills();
+                renderEPG();
+                setFocus(document.querySelector('.cat-pill'));
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function parseXMLAsync(xmlString, sourceName) {
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(xmlString, "text/xml");
+            const now = new Date();
+
+            const chNodes = xmlDoc.getElementsByTagName("channel");
+            for (let i = 0; i < chNodes.length; i++) {
+                const node = chNodes[i];
+                const rawId = node.getAttribute("id");
+                channels.push({ id: `${sourceName}-${rawId}`, rawId: rawId, name: node.getElementsByTagName("display-name")[0]?.textContent || rawId, icon: node.getElementsByTagName("icon")[0]?.getAttribute("src") || null, source: sourceName, categories: Array.from(node.getElementsByTagName("category")).map(c => c.textContent).filter(v => v) });
+            }
+
+            const pgNodes = xmlDoc.getElementsByTagName("programme");
+            for (let i = 0; i < pgNodes.length; i++) {
+                const node = pgNodes[i];
+                const stop = parseXMLTVDate(node.getAttribute("stop"));
+                if (stop && stop < now) continue;
+                const start = parseXMLTVDate(node.getAttribute("start"));
+                const cats = Array.from(node.getElementsByTagName("category")).map(c => c.textContent).filter(v => v);
+                if (start && stop) {
+                    programs.push({ channelId: `${sourceName}-${node.getAttribute("channel")}`, start, stop, title: node.getElementsByTagName("title")[0]?.textContent || "No Title", subTitle: node.getElementsByTagName("sub-title")[0]?.textContent || null, desc: node.getElementsByTagName("desc")[0]?.textContent || "No description.", categories: cats, source: sourceName, poster: node.getElementsByTagName("icon")[0]?.getAttribute("src") || null, rating: node.getElementsByTagName("rating")[0]?.getElementsByTagName("value")[0]?.textContent || null, isRerun: node.getElementsByTagName("previously-shown").length > 0, actors: Array.from(node.querySelectorAll("credits actor")).map(a => a.textContent).filter(v => v), directors: Array.from(node.querySelectorAll("credits director")).map(d => d.textContent).filter(v => v) });
+                }
+            }
+        }
+
+        function populateCategoryPills() {
+            const container = document.getElementById('category-pills');
+            container.innerHTML = '';
+            
+            // Build "All" pill
+            const allBtn = document.createElement('button');
+            allBtn.className = 'cat-pill focusable' + (currentFilter === 'all' ? ' active' : '');
+            allBtn.innerText = 'All Channels';
+            allBtn.onclick = (ev) => applyFilter('all', ev.target);
+            container.appendChild(allBtn);
+
+            const now = new Date();
+            const relevant = programs.filter(p => now >= p.start && now < p.stop);
+            const macroMap = new Map();
+            const channelsWithMajorCategory = new Set();
+            
+            relevant.forEach(p => {
+                p.categories.forEach(c => {
+                    const match = getMajorMacroMatch(c);
+                    if (match && match !== MACRO_CATEGORIES.MISC) channelsWithMajorCategory.add(p.channelId);
+                });
+            });
+
+            relevant.forEach(p => {
+                const pMacros = new Set();
+                let foundMajor = false;
+                p.categories.forEach(c => {
+                    const m = getMajorMacroMatch(c);
+                    if (m && m !== MACRO_CATEGORIES.MISC) {
+                        pMacros.add(m); foundMajor = true;
+                    }
+                });
+                if (!foundMajor && !channelsWithMajorCategory.has(p.channelId)) {
+                    pMacros.add(MACRO_CATEGORIES.MISC);
+                }
+                pMacros.forEach(m => {
+                    if (!macroMap.has(m)) macroMap.set(m, new Set());
+                    macroMap.get(m).add(p.channelId);
+                });
+            });
+
+            Array.from(macroMap.entries()).filter(e => e[1].size >= 2).sort((a,b) => a[0].localeCompare(b[0])).forEach(e => {
+                const btn = document.createElement('button');
+                btn.className = 'cat-pill focusable' + (currentFilter === e[0] ? ' active' : '');
+                btn.innerText = e[0];
+                btn.onclick = (ev) => applyFilter(e[0], ev.target);
+                container.appendChild(btn);
+            });
+        }
+
+        function applyFilter(cat, btn) {
+            currentFilter = cat;
+            document.querySelectorAll('.cat-pill').forEach(p => p.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            renderEPG();
+        }
+
+        function renderEPG() {
+            const sidebar = document.getElementById('channels-sidebar');
+            const grid = document.getElementById('program-grid');
+            const header = document.getElementById('timeline-header');
+            sidebar.innerHTML = ''; grid.innerHTML = ''; header.innerHTML = '';
+            
+            const totalWidth = 90 * currentPPM;
+            header.style.width = grid.style.width = `${totalWidth}px`;
+
+            const firstMarker = new Date(minTime);
+            firstMarker.setMinutes(Math.ceil(firstMarker.getMinutes() / 30) * 30, 0, 0);
+            for (let t = new Date(firstMarker); t < maxTime; t.setMinutes(t.getMinutes() + 30)) {
+                const div = document.createElement('div');
+                div.className = 'time-slot'; div.style.left = `${getPosition(t)}px`;
+                div.innerText = t.toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'});
+                header.appendChild(div);
+            }
+
+            const now = new Date();
+            const activeChs = new Set();
+            channels.forEach(ch => {
+                const cp = programs.find(p => p.channelId === ch.id && now >= p.start && now < p.stop);
+                if (searchQuery) {
+                    const matchesName = ch.name.toLowerCase().includes(searchQuery);
+                    const matchesCurrentShow = cp && (cp.title.toLowerCase().includes(searchQuery) || cp.categories.some(cat => cat.toLowerCase().includes(searchQuery)));
+                    if (!matchesName && !matchesCurrentShow) return;
+                }
+                if (currentFilter !== 'all') {
+                    if (currentFilter === MACRO_CATEGORIES.MISC) { 
+                        if (cp && cp.categories.some(c => getMajorMacroMatch(c) !== null)) return; 
+                    } else { 
+                        if (!cp || !cp.categories.some(c => mapToMacroCategory(c) === currentFilter)) return; 
+                    }
+                }
+                activeChs.add(ch.id);
+            });
+
+            channels.filter(ch => activeChs.has(ch.id)).forEach((ch, chIndex) => {
+                const chDiv = document.createElement('div');
+                chDiv.className = 'channel-row focusable';
+                chDiv.setAttribute('data-ch-index', chIndex);
+                if (ch.icon) {
+                    const img = document.createElement('img'); img.src = ch.icon; img.className = 'channel-logo';
+                    chDiv.appendChild(img);
+                } else {
+                    chDiv.innerHTML = `<span style="display:block; width:100%">${ch.name}</span>`;
+                }
+                chDiv.onclick = () => {
+                    const cp = programs.find(p => p.channelId === ch.id && now >= p.start && now < p.stop);
+                    openPlayer(cp || { title: ch.name, desc: "Live", source: ch.source, channelId: ch.id });
+                };
+                sidebar.appendChild(chDiv);
+
+                const row = document.createElement('div'); row.className = 'program-row';
+                programs.filter(p => p.channelId === ch.id && p.stop >= minTime && p.start <= maxTime).forEach((p) => {
+                    const s = Math.max(p.start, minTime), e = Math.min(p.stop, maxTime);
+                    const card = document.createElement('div'); 
+                    card.className = 'program-card focusable'; 
+                    card.setAttribute('data-ch-index', chIndex);
+                    card.style.left = `${getPosition(s)}px`; 
+                    card.style.width = `${Math.max(2, ((e - s) / 60000) * currentPPM - 6)}px`;
+                    card.innerHTML = `<div class="program-title">${p.title}</div><div class="program-time">${fmtTime(p.start)} - ${fmtTime(p.stop)}</div>`;
+                    card.onclick = () => openPlayer(p); 
+                    row.appendChild(card);
+                });
+                grid.appendChild(row);
+            });
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('epg-container').style.display = 'grid';
+        }
+
+        // --- D-PAD NAVIGATION ---
+        function setFocus(el) {
+            if (!el) return;
+            if (currentFocus) currentFocus.classList.remove('focused');
+            currentFocus = el;
+            currentFocus.classList.add('focused');
+            
+            const container = document.getElementById('epg-container');
+            const rect = el.getBoundingClientRect();
+            
+            if (el.classList.contains('cat-pill')) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            } else if (el.classList.contains('channel-row')) {
+                container.scrollLeft = 0;
+                el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } else if (el.classList.contains('program-card')) {
+                const sidebarWidth = 130;
+                if (rect.left < sidebarWidth) container.scrollLeft -= (sidebarWidth - rect.left + 50);
+                else if (rect.right > window.innerWidth) container.scrollLeft += (rect.right - window.innerWidth + 50);
+                el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }
+
+        function handleGlobalKeyDown(e) {
+            if (document.activeElement.tagName === 'INPUT') return;
+            const isPlayerOpen = document.getElementById('player-overlay').style.display === 'flex';
+
+            switch(e.key) {
+                case 'ArrowUp': e.preventDefault(); isPlayerOpen ? null : navigate('up'); break;
+                case 'ArrowDown': e.preventDefault(); isPlayerOpen ? null : navigate('down'); break;
+                case 'ArrowLeft': e.preventDefault(); isPlayerOpen ? moveFocusInPlayer('left') : navigate('left'); break;
+                case 'ArrowRight': e.preventDefault(); isPlayerOpen ? moveFocusInPlayer('right') : navigate('right'); break;
+                case 'Enter': e.preventDefault(); if (currentFocus) currentFocus.click(); break;
+                case 'Escape': case 'Backspace': if (isPlayerOpen) { e.preventDefault(); closePlayer(); } break;
+            }
+        }
+
+        function navigate(dir) {
+            if (!currentFocus) return setFocus(document.querySelector('.cat-pill'));
+            let next = null;
+            const isPill = currentFocus.classList.contains('cat-pill');
+            const isSidebar = currentFocus.classList.contains('channel-row');
+            const isCard = currentFocus.classList.contains('program-card');
+
+            if (dir === 'right') {
+                if (isPill) next = currentFocus.nextElementSibling;
+                else if (isSidebar) next = document.querySelector(`.program-card[data-ch-index="${currentFocus.getAttribute('data-ch-index')}"]`);
+                else if (isCard) next = currentFocus.nextElementSibling;
+            } else if (dir === 'left') {
+                if (isPill) next = currentFocus.previousElementSibling;
+                else if (isCard) {
+                    next = currentFocus.previousElementSibling;
+                    if (!next) next = document.querySelector(`.channel-row[data-ch-index="${currentFocus.getAttribute('data-ch-index')}"]`);
+                }
+            } else if (dir === 'down') {
+                if (isPill) next = document.querySelector('.channel-row[data-ch-index="0"]');
+                else {
+                    const idx = parseInt(currentFocus.getAttribute('data-ch-index')) + 1;
+                    next = isSidebar ? document.querySelector(`.channel-row[data-ch-index="${idx}"]`) : findClosestInRow(currentFocus, idx);
+                }
+            } else if (dir === 'up') {
+                const idx = parseInt(currentFocus.getAttribute('data-ch-index'));
+                if (idx === 0 || isNaN(idx)) {
+                    next = document.querySelector('.cat-pill.active') || document.querySelector('.cat-pill');
+                } else {
+                    const target = idx - 1;
+                    next = isSidebar ? document.querySelector(`.channel-row[data-ch-index="${target}"]`) : findClosestInRow(currentFocus, target);
+                }
+            }
+            if (next && next.classList.contains('focusable')) setFocus(next);
+        }
+
+        function findClosestInRow(currentEl, targetIdx) {
+            const currentRect = currentEl.getBoundingClientRect();
+            const rowCards = document.querySelectorAll(`.program-card[data-ch-index="${targetIdx}"]`);
+            if (!rowCards.length) return document.querySelector(`.channel-row[data-ch-index="${targetIdx}"]`);
+            let closest = rowCards[0], minDiff = Infinity;
+            rowCards.forEach(card => {
+                const diff = Math.abs(card.getBoundingClientRect().left - currentRect.left);
+                if (diff < minDiff) { minDiff = diff; closest = card; }
+            });
+            return closest;
+        }
+
+        function moveFocusInPlayer(dir) {
+            const btns = Array.from(document.querySelectorAll('#player-overlay .focusable'));
+            const idx = btns.indexOf(currentFocus);
+            if (dir === 'left' && idx > 0) setFocus(btns[idx - 1]);
+            if (dir === 'right' && idx < btns.length - 1) setFocus(btns[idx + 1]);
+        }
+
+        // --- PLAYER FUNCTIONS ---
+        function openPlayer(p) {
+            currentlyPlayingProgram = p;
+            document.getElementById('player-title').innerText = p.title;
+            document.getElementById('player-subtitle').innerText = p.subTitle || "";
+            document.getElementById('player-desc').innerText = p.desc;
+            document.getElementById('player-source-label').innerText = `NOW PLAYING - ${p.source}`;
+            document.getElementById('video-placeholder').src = p.poster || "";
+
+            initializeStream(p);
+            document.getElementById('player-overlay').style.display = 'flex';
+            setFocus(document.getElementById('player-mode-toggle'));
+        }
+
+        function initializeStream(p) {
+            const video = document.getElementById('main-video');
+            const ch = channels.find(c => c.id === p.channelId);
+            video.pause(); video.src = "";
+            if (hls) { hls.destroy(); hls = null; }
+
+            if (p.source.toLowerCase().includes('pluto') && ch && ch.rawId) {
+                const streamUrl = getStreamUrl(ch.rawId);
+                if (playerEngine === 'hls' && Hls.isSupported()) {
+                    hls = new Hls(); 
+                    hls.attachMedia(video);
+                    hls.on(Hls.Events.MEDIA_ATTACHED, () => {
+                        hls.loadSource(streamUrl);
+                    });
+                    hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
+                } else {
+                    video.src = streamUrl;
+                    video.play().catch(e => console.log("Native failed"));
+                }
+            }
+        }
+
+        function closePlayer() { 
+            document.getElementById('player-overlay').style.display = 'none'; 
+            document.getElementById('main-video').pause();
+            setFocus(document.querySelector('.channel-row.focused') || document.querySelector('.program-card.focused'));
+        }
+
+        function togglePlayerMode() {
+            playerEngine = (playerEngine === 'hls' ? 'native' : 'hls');
+            document.getElementById('player-mode-toggle').innerText = `Engine: ${playerEngine.toUpperCase()}`;
+            if (currentlyPlayingProgram) initializeStream(currentlyPlayingProgram);
+        }
+
+        function openStreamInNewTab() {
+            if (!currentlyPlayingProgram) return;
+            const ch = channels.find(c => c.id === currentlyPlayingProgram.channelId);
+            if (ch && ch.rawId) window.open(getStreamUrl(ch.rawId), '_blank');
+        }
+
+        // --- UTILS ---
+        function handleSearch(val) { searchQuery = val.toLowerCase().trim(); renderEPG(); }
+        function getPosition(d) { return ((d - minTime) / 60000) * currentPPM; }
+        function fmtTime(d) { return d ? d.toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'}) : ""; }
+        function parseXMLTVDate(str) { if (!str) return null; const y = str.substring(0, 4), m = str.substring(4, 6) - 1, d = str.substring(6, 8), h = str.substring(8, 10), min = str.substring(10, 12); return new Date(Date.UTC(y, m, d, h, min)); }
+        function setupGridTimeBoundaries() { minTime = new Date(); maxTime = new Date(minTime.getTime() + (HOURS_TO_SHOW * 3600000)); }
+        function updateClock() { const now = new Date(); document.getElementById('current-date-display').innerText = now.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'}); }
+        function handleStickyTitles() {}
+    </script>
+</body>
+</html>
