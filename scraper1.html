@@ -60,51 +60,39 @@
         const TRENDING_WINDOW_FILTER = '&year%5B%5D=2025&year%5B%5D=2024';
 
         /**
-         * Enhanced Icon Component for Standalone Usage
-         * Safely injects SVG string from window.lucide without React reconciliation conflicts.
+         * Enhanced Icon Component
+         * Safely renders Lucide icons in a browser environment using lucide.createElement
          */
         const Icon = ({ name, size = 16, className = "", fill = "none" }) => {
             const containerRef = useRef(null);
 
             useEffect(() => {
-                if (containerRef.current && window.lucide && window.lucide.icons) {
-                    // Convert kebab-case name to camelCase for lookup if needed, 
-                    // though Lucide CDN usually exposes keys like 'ArrowRight'.
-                    // We try to find the icon by normalizing the name.
-                    const iconNameCamel = name.replace(/-./g, x=>x[1].toUpperCase());
-                    const iconNamePascal = iconNameCamel.charAt(0).toUpperCase() + iconNameCamel.slice(1);
-                    
-                    // Try direct lookup or normalized lookups
-                    const icon = window.lucide.icons[name] || window.lucide.icons[iconNameCamel] || window.lucide.icons[iconNamePascal];
-                    
-                    if (icon) {
-                        // Create SVG element
-                        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-                        svg.setAttribute("width", size);
-                        svg.setAttribute("height", size);
-                        svg.setAttribute("viewBox", "0 0 24 24");
-                        svg.setAttribute("fill", fill);
-                        svg.setAttribute("stroke", "currentColor");
-                        svg.setAttribute("stroke-width", "2");
-                        svg.setAttribute("stroke-linecap", "round");
-                        svg.setAttribute("stroke-linejoin", "round");
-                        
-                        // Apply classes
-                        if (className) {
-                            svg.setAttribute("class", className);
+                if (window.lucide && window.lucide.icons && containerRef.current) {
+                    // Convert kebab-case to PascalCase
+                    const normalizeName = (str) => {
+                        const camel = str.replace(/-./g, x => x[1].toUpperCase());
+                        return camel.charAt(0).toUpperCase() + camel.slice(1);
+                    };
+
+                    const iconKey = normalizeName(name);
+                    const iconDef = window.lucide.icons[iconKey] || window.lucide.icons[name];
+
+                    // Clear previous content
+                    containerRef.current.innerHTML = '';
+
+                    if (iconDef) {
+                        try {
+                            const svgElement = window.lucide.createElement(iconDef);
+                            svgElement.setAttribute('width', size);
+                            svgElement.setAttribute('height', size);
+                            if (className) svgElement.setAttribute('class', className);
+                            svgElement.setAttribute('fill', fill);
+                            svgElement.setAttribute('stroke-width', 2);
+                            
+                            containerRef.current.appendChild(svgElement);
+                        } catch (e) {
+                            // Silent fail for icon rendering
                         }
-
-                        // Add path data (Lucide icons are arrays of [tag, attrs])
-                        icon.forEach(([tag, attrs]) => {
-                            const element = document.createElementNS("http://www.w3.org/2000/svg", tag);
-                            Object.entries(attrs).forEach(([key, value]) => element.setAttribute(key, value));
-                            svg.appendChild(element);
-                        });
-
-                        containerRef.current.innerHTML = '';
-                        containerRef.current.appendChild(svg);
-                    } else {
-                        console.warn(`Icon not found: ${name}`);
                     }
                 }
             }, [name, size, className, fill]);
@@ -129,7 +117,7 @@
             { id: '14', name: 'Action', icon: 'zap' },
             { id: '109', name: 'Adventure', icon: 'map' },
             { id: '1', name: 'Comedy', icon: 'smile' },
-            { id: '18', name: 'Drama', icon: 'theater' }, // Maps to 'drama' in newer Lucide or fallback
+            { id: '18', name: 'Drama', icon: 'theater' },
             { id: '27', name: 'Horror', icon: 'ghost' },
             { id: '162', name: 'Sci-Fi', icon: 'rocket' },
         ];
@@ -166,6 +154,10 @@
             const [isAdvancedVisible, setIsAdvancedVisible] = useState(false);
             const [tempUrl, setTempUrl] = useState(new URLSearchParams(window.location.search).get('api') || '');
 
+            // Search State
+            const [searchInput, setSearchInput] = useState('');
+            const [activeSearch, setActiveSearch] = useState('');
+
             // Scraper Selectors State
             const [selectors, setSelectors] = useState({
                 item: '.movie-cards .item, .flw-item, .item',
@@ -185,21 +177,54 @@
             const [isModalLoading, setIsModalLoading] = useState(false);
             const [currentEndpoint, setCurrentEndpoint] = useState('');
             
-            // Debug Panel State
+            // Debug State
             const [debugLogs, setDebugLogs] = useState([]);
             const [showDebug, setShowDebug] = useState(false);
-
+            
             const preloadTriggerRef = useRef(null);
             const scrollObserver = useRef(null);
 
+            const showYearFilter = activeSort.id !== 'latest' && activeSort.id !== 'release_date';
+
+            // Function to reset other filters when switching modes
+            const handleCategoryChange = (category) => {
+                setActiveMain(category);
+                setActiveSearch(''); // Clear search when browsing categories
+                setSearchInput('');
+            };
+
+            const handleSortChange = (sort) => {
+                setActiveSort(sort);
+            };
+
+            const handleGenreChange = (genre) => {
+                setActiveGenre(genre);
+            };
+
+            const handleSearchSubmit = (e) => {
+                if (e.key === 'Enter') {
+                    setActiveSearch(searchInput);
+                    setPage(1);
+                    // Force refresh with new search logic handled in getActiveUrl
+                }
+            };
+
             const getActiveUrl = useCallback((pageNum = 1) => {
                 if (!baseUrl) return '';
+
+                // Search Mode logic
+                if (activeSearch) {
+                    const formattedTerm = activeSearch.trim().replace(/\s+/g, '+');
+                    return `${baseUrl}/browser?keyword=${formattedTerm}&page=${pageNum}`;
+                }
+
+                // Standard Browsing Mode logic
                 let url = `${baseUrl}/browser?${QUALITY_PARAMS}`;
                 
                 if (activeMain.id === 'movie') url += '&type%5B%5D=movie';
                 if (activeMain.id === 'tv') url += '&type%5B%5D=tv';
 
-                if (activeYears.length > 0 && !activeYears.includes('all')) {
+                if (showYearFilter && activeYears.length > 0 && !activeYears.includes('all')) {
                     activeYears.forEach(year => { url += `&year%5B%5D=${year}`; });
                 } else {
                     if (activeSort.id === 'trending') {
@@ -219,7 +244,7 @@
                 if (pageNum > 1) url += `&page=${pageNum}`;
                 
                 return url;
-            }, [activeMain, activeSort, activeGenre, activeYears, baseUrl]);
+            }, [activeMain, activeSort, activeGenre, activeYears, baseUrl, showYearFilter, activeSearch]);
 
             const fetchMovies = useCallback(async (isInitial = true) => {
                 if (!baseUrl) return;
@@ -248,7 +273,6 @@
                     const doc = parser.parseFromString(html, 'text/html');
                     let movieElements = [];
 
-                    // Dynamic selector usage
                     const itemSelectorList = selectors.item.split(',').map(s => s.trim());
                     for (const s of itemSelectorList) {
                         const found = doc.querySelectorAll(s);
@@ -259,17 +283,14 @@
                     }
 
                     const extracted = movieElements.map(el => {
-                        // Dynamic Title
                         const titleEl = el.querySelector(selectors.title) || el.querySelector('a') || el.querySelector('h3');
                         if (!titleEl) return null;
                         const title = titleEl.textContent.trim() || titleEl.getAttribute('title');
                         
-                        // Dynamic Link
                         const linkEl = el.querySelector(selectors.link) || el.querySelector('a');
                         const path = linkEl ? linkEl.getAttribute('href') : null;
                         const link = path ? (path.startsWith('http') ? path : `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`) : '#';
                         
-                        // Dynamic Poster
                         const img = el.querySelector(selectors.poster) || el.querySelector('img');
                         const imageUrl = img ? (img.getAttribute('data-src') || img.getAttribute('src')) : null;
                         
@@ -339,9 +360,10 @@
                 }
             }, [handleSaveUrl]);
 
+            // Trigger fetch on filter change OR search trigger
             useEffect(() => { 
                 if (baseUrl) fetchMovies(true); 
-            }, [activeMain, activeSort, activeGenre, activeYears, baseUrl]);
+            }, [activeMain, activeSort, activeGenre, activeYears, baseUrl, activeSearch]);
 
             const handleYearToggle = (yearId) => {
                 if (yearId === 'all') { setActiveYears(['all']); return; }
@@ -436,20 +458,37 @@
 
                     <header className="sticky top-0 z-50 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 shadow-xl">
                         <div className="px-3 md:px-4 py-2 md:py-3 flex items-center justify-between gap-3 md:gap-4">
-                            <div className="flex items-center gap-2 shrink-0">
-                                <div className="p-1.5 bg-blue-600 rounded-lg shadow-inner shadow-white/10"><Icon name="cpu" className="text-white" size={18} /></div>
-                                <h1 className="text-sm md:text-lg font-black tracking-tighter hidden xs:block uppercase text-white">CORE_STREAM</h1>
-                            </div>
                             
-                            <nav className="flex items-center gap-2 px-1 overflow-x-auto no-scrollbar">
-                                {MAIN_CATEGORIES.map(group => (
-                                    <button key={group.id} onClick={() => setActiveMain(group)} className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[10px] md:text-xs font-black uppercase transition-all shrink-0 ${activeMain.id === group.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40' : 'text-slate-500 hover:text-slate-200'}`}>
-                                        <Icon name={group.icon} size={12} /> {group.name}
-                                    </button>
-                                ))}
-                            </nav>
+                            {/* Logo & Navigation */}
+                            <div className="flex items-center gap-6 overflow-x-auto no-scrollbar shrink-0 max-w-[60%] md:max-w-none">
+                                <div className="flex items-center gap-2 shrink-0">
+                                    <div className="p-1.5 bg-blue-600 rounded-lg shadow-inner shadow-white/10"><Icon name="cpu" className="text-white" size={18} /></div>
+                                    <h1 className="text-sm md:text-lg font-black tracking-tighter hidden xs:block uppercase text-white">CORE_STREAM</h1>
+                                </div>
+                                
+                                <nav className="flex items-center gap-2 px-1">
+                                    {MAIN_CATEGORIES.map(group => (
+                                        <button key={group.id} onClick={() => handleCategoryChange(group)} className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[10px] md:text-xs font-black uppercase transition-all shrink-0 whitespace-nowrap ${activeMain.id === group.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40' : 'text-slate-500 hover:text-slate-200'}`}>
+                                            <Icon name={group.icon} size={12} /> {group.name}
+                                        </button>
+                                    ))}
+                                </nav>
+                            </div>
 
-                            <div className="flex items-center gap-1.5 ml-auto">
+                            {/* Search Bar */}
+                            <div className="flex-grow max-w-xs relative group min-w-[120px]">
+                                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-400 transition-colors"><Icon name="search" size={16} /></div>
+                                <input 
+                                    type="text" 
+                                    placeholder="Search..." 
+                                    value={searchInput}
+                                    onChange={(e) => setSearchInput(e.target.value)}
+                                    onKeyDown={handleSearchSubmit}
+                                    className="w-full bg-slate-800/40 border border-slate-700/50 rounded-full py-1.5 pl-9 pr-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-600/50 transition-all text-xs"
+                                />
+                            </div>
+
+                            <div className="flex items-center gap-1.5 ml-auto shrink-0">
                                 <button onClick={() => setShowDebug(!showDebug)} className={`p-1.5 md:p-2 rounded-full transition-all ${showDebug ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'}`} title="Debug"><Icon name="terminal" size={14} /></button>
                                 <button onClick={() => setShowUrlPrompt(true)} className="p-1.5 md:p-2 bg-slate-800 hover:bg-slate-700 rounded-full text-slate-400" title="Settings"><Icon name="database" size={14} /></button>
                                 <button onClick={() => fetchMovies(true)} className="p-1.5 md:p-2 bg-slate-800 hover:bg-slate-700 rounded-full text-slate-400"><Icon name="refresh-cw" className={loading ? "animate-spin-custom" : ""} size={14} /></button>
@@ -461,14 +500,16 @@
                                 <span className="text-[8px] md:text-[9px] font-black text-slate-600 uppercase tracking-widest shrink-0">Sort:</span>
                                 <div className="flex items-center gap-3">
                                     {SORTS.map(sort => (
-                                        <button key={sort.id} onClick={() => setActiveSort(sort)} className={`flex items-center gap-1.5 text-[9px] md:text-[10px] font-black uppercase whitespace-nowrap transition-colors ${activeSort.id === sort.id ? 'text-blue-400' : 'text-slate-500'}`}>
+                                        <button key={sort.id} onClick={() => handleSortChange(sort)} className={`flex items-center gap-1.5 text-[9px] md:text-[10px] font-black uppercase whitespace-nowrap transition-colors ${activeSort.id === sort.id ? 'text-blue-400' : 'text-slate-500'}`}>
                                             <Icon name={sort.icon} size={11} /> {sort.name}
                                             {activeSort.id === sort.id && <div className="w-1 h-1 rounded-full bg-blue-400 ml-0.5" />}
                                         </button>
                                     ))}
                                     <div className="w-[1px] h-3 bg-slate-800 mx-1 shrink-0" />
                                     <button onClick={() => setShowGenreMenu(!showGenreMenu)} className={`flex items-center gap-1.5 text-[9px] md:text-[10px] font-black uppercase whitespace-nowrap transition-colors ${showGenreMenu ? 'text-emerald-400' : 'text-slate-500 hover:text-slate-300'}`}><Icon name="layers" size={11} /> Genre <Icon name="chevron-down" size={10} className={showGenreMenu ? 'rotate-180' : ''} /></button>
-                                    <button onClick={() => setShowYearMenu(!showYearMenu)} className={`flex items-center gap-1.5 text-[9px] md:text-[10px] font-black uppercase whitespace-nowrap transition-colors ${showYearMenu ? 'text-amber-400' : 'text-slate-500 hover:text-slate-300'}`}><Icon name="history" size={11} /> Year <Icon name="chevron-down" size={10} className={showYearMenu ? 'rotate-180' : ''} /></button>
+                                    {showYearFilter && (
+                                        <button onClick={() => setShowYearMenu(!showYearMenu)} className={`flex items-center gap-1.5 text-[9px] md:text-[10px] font-black uppercase whitespace-nowrap transition-colors ${showYearMenu ? 'text-amber-400' : 'text-slate-500 hover:text-slate-300'}`}><Icon name="history" size={11} /> Year <Icon name="chevron-down" size={10} className={showYearMenu ? 'rotate-180' : ''} /></button>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -478,7 +519,7 @@
                                 <span className="text-[8px] md:text-[9px] font-black text-slate-600 uppercase tracking-widest shrink-0">Genre:</span>
                                 <div className="flex gap-4">
                                     {GENRES.map(genre => (
-                                        <button key={genre.id} onClick={() => setActiveGenre(genre)} className={`flex items-center gap-1.5 text-[9px] md:text-[10px] font-black uppercase whitespace-nowrap shrink-0 transition-colors ${activeGenre.id === genre.id ? 'text-emerald-400' : 'text-slate-500'}`}>
+                                        <button key={genre.id} onClick={() => handleGenreChange(genre)} className={`flex items-center gap-1.5 text-[9px] md:text-[10px] font-black uppercase whitespace-nowrap shrink-0 transition-colors ${activeGenre.id === genre.id ? 'text-emerald-400' : 'text-slate-500'}`}>
                                             <Icon name={genre.icon} size={11} /> {genre.name}
                                             {activeGenre.id === genre.id && <div className="w-1 h-1 rounded-full bg-emerald-400 ml-0.5" />}
                                         </button>
@@ -526,6 +567,9 @@
                                         <div className="p-3">
                                             <div className="text-[10px] text-blue-400 mb-2 truncate opacity-70">URL: <span className="text-slate-300">{log.url}</span></div>
                                             {log.error ? <div className="text-red-400 text-[10px] font-bold">ERROR: {log.error}</div> : <div className="text-[10px] text-slate-500 mb-2">{log.itemsCount} items</div>}
+                                            <pre className="text-[10px] leading-relaxed text-emerald-500/80 overflow-x-auto max-h-48 custom-scrollbar">
+                                                {JSON.stringify(log.data, null, 2)}
+                                            </pre>
                                         </div>
                                     </div>
                                 ))}
@@ -555,7 +599,7 @@
                                 <div className="flex items-center gap-3 mb-4 md:mb-6 opacity-40">
                                     <div className="h-[2px] w-4 md:w-8 bg-blue-600" />
                                     <h2 className="text-[10px] md:text-xs font-black uppercase tracking-[0.2em] text-slate-500 line-clamp-1">
-                                        {activeSort.name} / {activeMain.name} / {activeGenre.name}
+                                        {activeSearch ? 'SEARCH RESULTS' : `${activeSort.name} / ${activeMain.name} / ${activeGenre.name}`}
                                     </h2>
                                     <span className="text-[9px] font-bold text-slate-700 ml-auto shrink-0">{movies.length} OBJECTS</span>
                                 </div>
