@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple M3U Tester</title>
+    <title>Simple M3U & API Tester</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Add HLS.js for .m3u8 support -->
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
@@ -20,12 +20,12 @@
         <!-- Header -->
         <header class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-                <h1 class="text-3xl font-bold text-blue-400">M3U Stream Tester</h1>
-                <p class="text-gray-400">Upload or link an M3U playlist to verify your streams.</p>
+                <h1 class="text-3xl font-bold text-blue-400">Stream Center Tester</h1>
+                <p class="text-gray-400">Test M3U playlists via URL parameters, manual input, or file upload.</p>
             </div>
             <div class="flex gap-2">
                 <label class="bg-gray-800 hover:bg-gray-700 px-4 py-2 rounded-lg cursor-pointer transition border border-gray-700">
-                    <span>Upload File</span>
+                    <span>Upload M3U</span>
                     <input type="file" id="fileInput" accept=".m3u,.m3u8" class="hidden">
                 </label>
             </div>
@@ -33,22 +33,28 @@
 
         <!-- Input Section -->
         <div class="bg-gray-800 p-6 rounded-xl border border-gray-700 mb-6">
-            <label class="block text-sm font-medium mb-2">Remote M3U URL (uses corsproxy.io)</label>
-            <div class="flex gap-2">
-                <input type="text" id="urlInput" placeholder="https://example.com/playlist.m3u" 
-                    class="flex-grow bg-gray-900 border border-gray-600 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500">
-                <button onclick="loadFromUrl()" class="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg font-bold transition">Load</button>
+            <h2 class="text-sm font-bold text-blue-400 uppercase mb-4 tracking-wider">Load M3U Playlist</h2>
+            <p class="text-xs text-gray-500 mb-4 italic">Tip: You can auto-load by adding <b>?url=[YOUR_M3U_URL]</b> to the page address.</p>
+            <div class="flex flex-col md:flex-row gap-3">
+                <div class="flex-grow">
+                    <label class="block text-xs font-medium mb-1 text-gray-500">Remote Playlist URL</label>
+                    <input type="text" id="urlInput" placeholder="https://example.com/playlist.m3u" 
+                        class="w-full bg-gray-900 border border-gray-600 rounded-lg p-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                </div>
+                <div class="flex items-end">
+                    <button onclick="loadFromUrl()" class="w-full md:w-auto bg-blue-600 hover:bg-blue-700 px-8 py-2 rounded-lg text-sm font-bold transition">Load</button>
+                </div>
             </div>
         </div>
 
         <!-- Activity Log Section -->
         <div class="mb-8 bg-gray-800/50 rounded-xl border border-gray-700 overflow-hidden">
             <div class="bg-gray-800 px-4 py-2 border-b border-gray-700 flex justify-between items-center">
-                <h3 class="text-xs font-bold uppercase tracking-wider text-gray-400">Playlist Activity Log</h3>
+                <h3 class="text-xs font-bold uppercase tracking-wider text-gray-400">Session Activity Log</h3>
                 <button onclick="clearLog()" class="text-[10px] text-gray-500 hover:text-white uppercase">Clear Log</button>
             </div>
             <div id="activityLog" class="max-h-32 overflow-y-auto text-xs font-mono p-2">
-                <div class="text-gray-600 italic px-2 py-1">No playlists loaded in this session.</div>
+                <div class="text-gray-600 italic px-2 py-1">No activity yet.</div>
             </div>
         </div>
 
@@ -94,7 +100,7 @@
         <!-- Channel Grid -->
         <div id="channelGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
             <div class="col-span-full py-20 text-center text-gray-500">
-                No channels loaded yet. Upload a file or enter a URL above.
+                No channels loaded. Load a URL or upload a file.
             </div>
         </div>
     </div>
@@ -104,26 +110,41 @@
         let hlsInstance = null;
         const proxy = "https://corsproxy.io/?";
 
-        function addToLog(source, isUrl = false) {
+        // Initialization: Check for URL parameters on load
+        window.onload = function() {
+            const params = new URLSearchParams(window.location.search);
+            const m3uUrl = params.get('url') || params.get('m3u');
+            
+            if (m3uUrl) {
+                document.getElementById('urlInput').value = m3uUrl;
+                loadFromUrl(m3uUrl);
+            }
+        };
+
+        function addToLog(source, type = 'info') {
             const logContainer = document.getElementById('activityLog');
-            if (logContainer.innerText.includes("No playlists loaded")) logContainer.innerHTML = '';
+            if (logContainer.innerText.includes("No activity yet")) logContainer.innerHTML = '';
             const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
             const entry = document.createElement('div');
             entry.className = 'log-entry border-b border-gray-800 py-1 px-2 flex justify-between items-center hover:bg-gray-800 group';
-            const textClass = isUrl ? 'text-blue-400 underline cursor-pointer hover:text-blue-300' : 'text-green-400';
-            const action = isUrl ? `onclick="document.getElementById('urlInput').value='${source}'; loadFromUrl()"` : '';
+            
+            let colorClass = 'text-blue-400';
+            if (type === 'file') colorClass = 'text-purple-400';
+            if (type === 'error') colorClass = 'text-red-400';
+
             entry.innerHTML = `
                 <div class="truncate mr-4">
                     <span class="text-gray-600 mr-2">[${now}]</span>
-                    <span class="${textClass} break-all" ${action}>${source}</span>
+                    <span class="${colorClass} break-all font-bold mr-1">${type.toUpperCase()}:</span>
+                    <span class="text-gray-300">${source}</span>
                 </div>
-                ${isUrl ? `<button onclick="copyToClipboard('${source}')" class="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-white transition px-2">Copy</button>` : ''}
+                <button onclick="copyToClipboard('${source}')" class="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-white transition px-2">Copy</button>
             `;
             logContainer.prepend(entry);
         }
 
         function clearLog() {
-            document.getElementById('activityLog').innerHTML = '<div class="text-gray-600 italic px-2 py-1">No playlists loaded in this session.</div>';
+            document.getElementById('activityLog').innerHTML = '<div class="text-gray-600 italic px-2 py-1">No activity yet.</div>';
         }
 
         function copyToClipboard(text) {
@@ -138,23 +159,30 @@
         document.getElementById('fileInput').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
-            addToLog(`Local File: ${file.name}`);
+            addToLog(file.name, 'file');
             const reader = new FileReader();
             reader.onload = (e) => parseM3U(e.target.result);
             reader.readAsText(file);
         });
 
-        async function loadFromUrl() {
+        async function loadFromUrl(passedUrl = null) {
             const urlInput = document.getElementById('urlInput');
-            const url = urlInput.value.trim();
+            const url = passedUrl || urlInput.value.trim();
+            
             if (!url) return alert("Enter a URL");
+            
+            addToLog(url, 'fetching');
+            
             try {
                 const response = await fetch(proxy + encodeURIComponent(url));
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
                 const data = await response.text();
-                addToLog(url, true);
+                addToLog(url, 'url');
                 parseM3U(data);
             } catch (err) {
-                alert("Failed to fetch M3U. Check URL or CORS settings.");
+                addToLog(err.message, 'error');
+                alert("Failed to fetch M3U playlist. Ensure the URL is correct and public.");
             }
         }
 
@@ -166,17 +194,13 @@
 
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i].trim();
-                
                 if (line.startsWith('#EXTVLCOPT:')) {
                     tempOptions.push(line.replace('#EXTVLCOPT:', ''));
                     continue;
                 }
-
                 if (line.startsWith('#EXTINF:')) {
                     const info = line;
                     let url = "";
-                    
-                    // Peek ahead to find URL, skip any other tags
                     let nextIdx = i + 1;
                     while (nextIdx < lines.length && (lines[nextIdx].trim().startsWith('#') || lines[nextIdx].trim() === "")) {
                         if (lines[nextIdx].trim().startsWith('#EXTVLCOPT:')) {
@@ -185,14 +209,12 @@
                         nextIdx++;
                     }
                     url = lines[nextIdx]?.trim();
-                    
                     if (url) {
                         const name = info.split(',').pop() || "Unknown Channel";
                         const logoMatch = info.match(/tvg-logo="([^"]+)"/i);
                         const groupMatch = info.match(/group-title="([^"]+)"/i);
                         const category = groupMatch ? groupMatch[1] : "Uncategorized";
                         categories.add(category);
-
                         channels.push({
                             name: name,
                             url: url,
@@ -200,12 +222,11 @@
                             category: category,
                             options: [...tempOptions]
                         });
-                        tempOptions = []; // Reset for next channel
-                        i = nextIdx; // Move pointer to URL line
+                        tempOptions = [];
+                        i = nextIdx;
                     }
                 }
             }
-
             allChannels = channels;
             updateCategoryDropdown(Array.from(categories));
             renderChannels(channels);
@@ -225,7 +246,7 @@
             const grid = document.getElementById('channelGrid');
             grid.innerHTML = '';
             if (channels.length === 0) {
-                grid.innerHTML = '<div class="col-span-full text-center text-gray-500 py-10">No channels found.</div>';
+                grid.innerHTML = '<div class="col-span-full text-center text-gray-500 py-10">No channels found in this playlist.</div>';
                 return;
             }
             channels.forEach((ch) => {
@@ -241,7 +262,7 @@
                     ${logoHtml}
                     <div class="text-[10px] text-blue-400 uppercase font-bold mb-1 truncate w-full">${ch.category}</div>
                     <div class="text-sm font-medium mb-3 line-clamp-2 h-10 overflow-hidden w-full" title="${ch.name}">${ch.name}</div>
-                    ${hasOptions ? '<div class="text-[8px] bg-blue-900/40 text-blue-300 px-1 rounded mb-2">SECURED STREAM</div>' : ''}
+                    ${hasOptions ? '<div class="text-[8px] bg-blue-900/40 text-blue-300 px-1 rounded mb-2 font-mono">HEADER REQD</div>' : ''}
                     <div class="flex flex-col gap-2 w-full mt-auto">
                         <button onclick="playStream('${encodeURIComponent(ch.url)}', '${encodeURIComponent(ch.name)}', '${encodeURIComponent(JSON.stringify(ch.options))}')" 
                             class="bg-blue-600 hover:bg-blue-700 text-xs py-2 rounded transition font-bold">WATCH NOW</button>
@@ -287,7 +308,7 @@
                 notice.classList.remove('hidden');
                 options.forEach(opt => {
                     const badge = document.createElement('span');
-                    badge.className = "text-[9px] bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded border border-gray-600";
+                    badge.className = "text-[9px] bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded border border-gray-600 font-mono";
                     badge.innerText = opt;
                     hints.appendChild(badge);
                 });
@@ -297,7 +318,6 @@
             
             container.classList.remove('hidden');
             
-            // Clean up previous HLS instance
             if (hlsInstance) {
                 hlsInstance.destroy();
                 hlsInstance = null;
