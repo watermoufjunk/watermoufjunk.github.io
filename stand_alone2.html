@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>IPTV Barebone Player</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.4.10/hls.min.js"></script>
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; font-family: sans-serif; }
+        video { width: 100%; height: 100%; outline: none; }
+        #error { color: white; display: flex; align-items: center; justify-content: center; height: 100%; text-align: center; padding: 20px; display: none; }
+        
+        /* Autoplay fallback button */
+        #unmute-overlay {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(99, 102, 241, 0.9);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: none;
+            font-size: 13px;
+            font-weight: bold;
+            z-index: 100;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            animation: fadeIn 0.5s;
+        }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+</head>
+<body>
+    <div id="unmute-overlay" onclick="unmuteVideo()">🔊 TAP TO UNMUTE</div>
+    <div id="error">Stream unavailable or blocked.</div>
+    <video id="video" controls autoplay playsinline></video>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const streamUrl = urlParams.get('url');
+        const video = document.getElementById('video');
+        const errorDiv = document.getElementById('error');
+        const unmuteBtn = document.getElementById('unmute-overlay');
+
+        function unmuteVideo() {
+            video.muted = false;
+            unmuteBtn.style.display = 'none';
+        }
+
+        function attemptPlay() {
+            // Try playing with sound
+            video.play().catch(() => {
+                // If blocked, mute and play (browsers always allow muted autoplay)
+                video.muted = true;
+                video.play().then(() => {
+                    // Show the unmute button if it's playing muted
+                    unmuteBtn.style.display = 'block';
+                });
+            });
+        }
+
+        if (streamUrl) {
+            const cleanUrl = decodeURIComponent(streamUrl).trim();
+            if (Hls.isSupported()) {
+                const hls = new Hls();
+                hls.loadSource(cleanUrl);
+                hls.attachMedia(video);
+                hls.on(Hls.Events.MANIFEST_PARSED, attemptPlay);
+                hls.on(Hls.Events.ERROR, (e, data) => {
+                    if (data.fatal) errorDiv.style.display = 'flex';
+                });
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                video.src = cleanUrl;
+                video.addEventListener('loadedmetadata', attemptPlay);
+            }
+        } else {
+            errorDiv.innerText = "No stream URL provided.";
+            errorDiv.style.display = 'flex';
+        }
+    </script>
+</body>
+</html>
