@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- This is the most important line for bypassing origin-based blocking -->
+    <meta name="referrer" content="no-referrer" />
+    <title>StreamStation Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background: #0a0a0a; color: #fff; }
+        .glass { background: rgba(15, 15, 15, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.05); }
+        .channel-active { background: linear-gradient(90deg, #2563eb33 0%, transparent 100%); border-left: 4px solid #3b82f6; }
+        .video-shadow { box-shadow: 0 0 50px -12px rgba(59, 130, 246, 0.3); }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+
+    <!-- Header -->
+    <header class="h-16 glass border-b border-white/5 flex items-center justify-between px-6 shrink-0 z-50">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 bg-blue-600 rounded flex items-center justify-center">
+                <i data-lucide="tv" class="w-5 h-5 text-white"></i>
+            </div>
+            <h1 class="text-lg font-bold tracking-tight">STREAM<span class="text-blue-500">STATION</span></h1>
+        </div>
+        
+        <div class="flex-1 max-w-lg mx-8">
+            <div class="relative">
+                <i data-lucide="link" class="absolute left-3 top-2.5 w-4 h-4 text-gray-500"></i>
+                <input type="text" id="m3uUrl" placeholder="Paste Remote M3U URL..." 
+                    class="w-full bg-white/5 border border-white/10 rounded-lg py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+            </div>
+        </div>
+
+        <button onclick="document.getElementById('fileInput').click()" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-semibold transition">
+            Upload File
+        </button>
+        <input type="file" id="fileInput" class="hidden" accept=".m3u,.m3u8">
+    </header>
+
+    <main class="flex-1 flex overflow-hidden">
+        <!-- Sidebar -->
+        <aside class="w-80 md:w-96 glass border-r border-white/5 flex flex-col shrink-0">
+            <div class="p-4 space-y-3">
+                <div class="relative">
+                    <i data-lucide="search" class="absolute left-3 top-2.5 w-4 h-4 text-gray-500"></i>
+                    <input type="text" id="search" placeholder="Search channels..." 
+                        class="w-full bg-white/5 border border-white/10 rounded-lg py-2 pl-10 pr-4 text-sm focus:outline-none">
+                </div>
+                <div id="categoryContainer" class="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+                    <button class="px-3 py-1 bg-blue-600 rounded-full text-[10px] font-bold uppercase">All</button>
+                </div>
+            </div>
+
+            <div id="channelList" class="flex-1 overflow-y-auto p-2 space-y-1">
+                <!-- Channels appear here -->
+                <div class="flex flex-col items-center justify-center h-full text-gray-600 opacity-50 p-8 text-center">
+                    <i data-lucide="database" class="w-12 h-12 mb-4"></i>
+                    <p class="text-xs">Load a playlist to start</p>
+                </div>
+            </div>
+
+            <div class="p-3 bg-black/20 border-t border-white/5 flex justify-between text-[10px] text-gray-500 uppercase font-bold tracking-widest">
+                <span id="channelCount">0 Channels</span>
+                <span class="text-blue-500">v2.0 PRO</span>
+            </div>
+        </aside>
+
+        <!-- Player -->
+        <section class="flex-1 bg-black flex flex-col p-4 lg:p-8 overflow-y-auto">
+            <div class="max-w-5xl mx-auto w-full space-y-6">
+                
+                <div class="relative group video-shadow rounded-2xl overflow-hidden bg-zinc-900 aspect-video">
+                    <video id="video" class="w-full h-full" controls playsinline crossorigin="anonymous"></video>
+                    
+                    <div id="videoOverlay" class="absolute inset-0 bg-black/80 flex flex-col items-center justify-center transition-opacity duration-300 pointer-events-none">
+                        <div id="loader" class="w-10 h-10 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin mb-4 hidden"></div>
+                        <i id="idleIcon" data-lucide="play-circle" class="w-16 h-16 text-white/10"></i>
+                        <p id="overlayText" class="text-white/30 font-medium mt-4">Select a channel to begin</p>
+                    </div>
+                </div>
+
+                <div class="glass p-6 rounded-2xl flex items-center gap-6">
+                    <div id="currentLogo" class="w-16 h-16 rounded-xl bg-white/5 flex items-center justify-center p-2 shrink-0 border border-white/5">
+                        <i data-lucide="image" class="w-6 h-6 text-zinc-800"></i>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="px-1.5 py-0.5 rounded bg-red-600 text-[9px] font-black uppercase">Live</span>
+                            <h2 id="playingName" class="text-xl font-bold truncate">No Stream Selected</h2>
+                        </div>
+                        <p id="playingGroup" class="text-xs text-gray-500 uppercase font-bold tracking-tight">---</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="togglePip()" class="p-3 hover:bg-white/10 rounded-xl border border-white/5 transition">
+                            <i data-lucide="pip" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Debug Info -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="p-4 rounded-xl border border-white/5 bg-white/5">
+                        <p class="text-[10px] text-gray-500 uppercase font-bold mb-2">Engine</p>
+                        <p class="text-sm font-semibold text-blue-400">HLS.js Professional</p>
+                    </div>
+                    <div class="p-4 rounded-xl border border-white/5 bg-white/5">
+                        <p class="text-[10px] text-gray-500 uppercase font-bold mb-2">Policy</p>
+                        <p class="text-sm font-semibold text-green-400">No-Referrer Active</p>
+                    </div>
+                    <div class="p-4 rounded-xl border border-white/5 bg-white/5">
+                        <p class="text-[10px] text-gray-500 uppercase font-bold mb-2">Status</p>
+                        <p id="bufferStatus" class="text-sm font-semibold">Idle</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const video = document.getElementById('video');
+        const channelList = document.getElementById('channelList');
+        const searchInput = document.getElementById('search');
+        const m3uUrlInput = document.getElementById('m3uUrl');
+        const fileInput = document.getElementById('fileInput');
+        const playingName = document.getElementById('playingName');
+        const playingGroup = document.getElementById('playingGroup');
+        const currentLogo = document.getElementById('currentLogo');
+        const videoOverlay = document.getElementById('videoOverlay');
+        const loader = document.getElementById('loader');
+        const overlayText = document.getElementById('overlayText');
+        const idleIcon = document.getElementById('idleIcon');
+        
+        let allChannels = [];
+        let hlsEngine = null;
+
+        lucide.createIcons();
+
+        // Standard M3U Parsing
+        function parseM3U(data) {
+            const lines = data.split('\n');
+            const channels = [];
+            let current = null;
+
+            for (let line of lines) {
+                line = line.trim();
+                if (line.startsWith('#EXTINF:')) {
+                    const name = line.split(',').pop() || 'Unnamed';
+                    const logo = line.match(/tvg-logo="([^"]+)"/i);
+                    const group = line.match(/group-title="([^"]+)"/i);
+                    current = {
+                        name: name.trim(),
+                        logo: logo ? logo[1] : null,
+                        group: group ? group[1] : 'General',
+                        url: ''
+                    };
+                } else if (line.startsWith('http')) {
+                    if (current) {
+                        current.url = line;
+                        channels.push(current);
+                        current = null;
+                    }
+                }
+            }
+            return channels;
+        }
+
+        function renderList(list) {
+            channelList.innerHTML = '';
+            const fragment = document.createDocumentFragment();
+            
+            list.slice(0, 500).forEach((chan, idx) => {
+                const div = document.createElement('div');
+                div.className = 'flex items-center gap-3 p-3 rounded-xl cursor-pointer hover:bg-white/5 transition-all group';
+                div.innerHTML = `
+                    <div class="w-10 h-10 rounded-lg bg-white/5 border border-white/5 flex items-center justify-center overflow-hidden shrink-0 group-hover:border-blue-500/50">
+                        ${chan.logo ? `<img src="${chan.logo}" class="w-full h-full object-contain" onerror="this.style.display='none'">` : '<i data-lucide="tv" class="w-4 h-4 opacity-20"></i>'}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <h4 class="text-xs font-bold truncate group-hover:text-blue-400 transition-colors">${chan.name}</h4>
+                        <p class="text-[9px] text-gray-500 uppercase font-black tracking-widest mt-0.5">${chan.group}</p>
+                    </div>
+                `;
+                div.onclick = () => play(chan, div);
+                fragment.appendChild(div);
+            });
+            channelList.appendChild(fragment);
+            lucide.createIcons();
+            document.getElementById('channelCount').textContent = `${allChannels.length} Channels`;
+        }
+
+        function play(channel, el) {
+            // UI State
+            document.querySelectorAll('.channel-active').forEach(x => x.classList.remove('channel-active'));
+            el.classList.add('channel-active');
+            
+            playingName.textContent = channel.name;
+            playingGroup.textContent = channel.group;
+            currentLogo.innerHTML = channel.logo ? `<img src="${channel.logo}" class="w-full h-full object-contain">` : `<i data-lucide="monitor" class="w-6 h-6 text-zinc-800"></i>`;
+            lucide.createIcons();
+
+            // Overlay Loading
+            videoOverlay.style.opacity = '1';
+            loader.classList.remove('hidden');
+            idleIcon.classList.add('hidden');
+            overlayText.textContent = "Negotiating stream...";
+
+            if (hlsEngine) hlsEngine.destroy();
+
+            if (Hls.isSupported()) {
+                hlsEngine = new Hls({
+                    // Optimized settings from IPTVnator logic
+                    capLevelToPlayerSize: true,
+                    maxBufferLength: 30,
+                    manifestLoadingTimeOut: 20000,
+                    xhrSetup: (xhr, url) => {
+                        xhr.withCredentials = false; // Bypasses some restrictive CORS policies
+                    }
+                });
+
+                hlsEngine.loadSource(channel.url);
+                hlsEngine.attachMedia(video);
+                
+                hlsEngine.on(Hls.Events.MANIFEST_PARSED, () => {
+                    video.play().catch(() => {
+                        overlayText.textContent = "Click to Play";
+                        loader.classList.add('hidden');
+                        idleIcon.classList.remove('hidden');
+                    });
+                    videoOverlay.style.opacity = '0';
+                });
+
+                hlsEngine.on(Hls.Events.ERROR, (event, data) => {
+                    if (data.fatal) {
+                        overlayText.textContent = "Stream Blocked (CORS/403)";
+                        loader.classList.add('hidden');
+                        idleIcon.classList.remove('hidden');
+                        document.getElementById('bufferStatus').textContent = "Error";
+                        document.getElementById('bufferStatus').classList.add('text-red-500');
+                    }
+                });
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                // Safari Fallback
+                video.src = channel.url;
+                video.addEventListener('loadedmetadata', () => {
+                    video.play();
+                    videoOverlay.style.opacity = '0';
+                });
+            }
+        }
+
+        // File/URL Loading
+        fileInput.onchange = (e) => {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                allChannels = parseM3U(ev.target.result);
+                renderList(allChannels);
+            };
+            reader.readAsText(file);
+        };
+
+        m3uUrlInput.onkeypress = async (e) => {
+            if (e.key === 'Enter') {
+                const url = m3uUrlInput.value.trim();
+                try {
+                    const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+                    const data = await res.json();
+                    allChannels = parseM3U(data.contents);
+                    renderList(allChannels);
+                } catch (err) {
+                    alert("CORS error on playlist. Try downloading the file and uploading manually.");
+                }
+            }
+        };
+
+        searchInput.oninput = (e) => {
+            const val = e.target.value.toLowerCase();
+            const filtered = allChannels.filter(c => c.name.toLowerCase().includes(val));
+            renderList(filtered);
+        };
+
+        function togglePip() {
+            if (document.pictureInPictureElement) document.exitPictureInPicture();
+            else video.requestPictureInPicture();
+        }
+
+        // Buffer Monitor
+        setInterval(() => {
+            if (video.buffered.length > 0) {
+                const b = video.buffered.end(video.buffered.length - 1) - video.currentTime;
+                document.getElementById('bufferStatus').textContent = b.toFixed(1) + 's Cached';
+                document.getElementById('bufferStatus').className = "text-sm font-semibold " + (b > 5 ? 'text-green-500' : 'text-yellow-500');
+            }
+        }, 2000);
+    </script>
+</body>
+</html>
