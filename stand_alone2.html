@@ -2,12 +2,11 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>IPTV Barebone Player</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.4.10/hls.min.js"></script>
+    <title>IPTV Universal Player</title>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; font-family: sans-serif; }
-        video { width: 100%; height: 100%; outline: none; }
-        #error { color: white; display: flex; align-items: center; justify-content: center; height: 100%; text-align: center; padding: 20px; display: none; }
+        video, .video-js { width: 100% !important; height: 100% !important; outline: none; }
+        #error { color: white; display: flex; align-items: center; justify-content: center; height: 100%; text-align: center; padding: 20px; display: none; z-index: 100; position: absolute; width: 100%; top: 0; background: rgba(0,0,0,0.8); }
         
         /* Autoplay fallback button */
         #unmute-overlay {
@@ -24,19 +23,22 @@
             font-weight: bold;
             z-index: 100;
             box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-            animation: fadeIn 0.5s;
         }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </style>
+    <!-- Video.js CSS (Always helpful for UI consistency if using VideoJS) -->
+    <link id="vjs-css" rel="stylesheet" href="https://vjs.zencdn.net/8.10.0/video-js.css" style="display:none">
 </head>
 <body>
     <div id="unmute-overlay" onclick="unmuteVideo()">🔊 TAP TO UNMUTE</div>
     <div id="error">Stream unavailable or blocked.</div>
-    <video id="video" controls autoplay playsinline></video>
+    <div id="player-container" style="width:100%; height:100%;">
+        <video id="video" controls autoplay playsinline class="video-js vjs-default-skin"></video>
+    </div>
 
     <script>
         const urlParams = new URLSearchParams(window.location.search);
         const streamUrl = urlParams.get('url');
+        const playerType = urlParams.get('type') || 'hls'; // Options: hls (default), videojs, shaka
         const video = document.getElementById('video');
         const errorDiv = document.getElementById('error');
         const unmuteBtn = document.getElementById('unmute-overlay');
@@ -47,35 +49,84 @@
         }
 
         function attemptPlay() {
-            // Try playing with sound
             video.play().catch(() => {
-                // If blocked, mute and play (browsers always allow muted autoplay)
                 video.muted = true;
                 video.play().then(() => {
-                    // Show the unmute button if it's playing muted
                     unmuteBtn.style.display = 'block';
                 });
             });
         }
 
-        if (streamUrl) {
-            const cleanUrl = decodeURIComponent(streamUrl).trim();
-            if (Hls.isSupported()) {
-                const hls = new Hls();
-                hls.loadSource(cleanUrl);
-                hls.attachMedia(video);
-                hls.on(Hls.Events.MANIFEST_PARSED, attemptPlay);
-                hls.on(Hls.Events.ERROR, (e, data) => {
-                    if (data.fatal) errorDiv.style.display = 'flex';
-                });
-            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                video.src = cleanUrl;
-                video.addEventListener('loadedmetadata', attemptPlay);
-            }
-        } else {
-            errorDiv.innerText = "No stream URL provided.";
-            errorDiv.style.display = 'flex';
+        function loadScript(src) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
         }
+
+        async function initPlayer() {
+            if (!streamUrl) {
+                errorDiv.innerText = "No stream URL provided.";
+                errorDiv.style.display = 'flex';
+                return;
+            }
+
+            const cleanUrl = decodeURIComponent(streamUrl).trim();
+
+            try {
+                if (playerType === 'videojs') {
+                    // --- VIDEO.JS ENGINE ---
+                    document.getElementById('vjs-css').style.display = 'block';
+                    await loadScript('https://vjs.zencdn.net/8.10.0/video.min.js');
+                    const player = videojs('video', {
+                        autoplay: true,
+                        controls: true,
+                        responsive: true,
+                        fluid: false,
+                        sources: [{ src: cleanUrl, type: 'application/x-mpegURL' }]
+                    });
+                    player.on('error', () => { errorDiv.style.display = 'flex'; });
+                    player.ready(() => attemptPlay());
+
+                } else if (playerType === 'shaka') {
+                    // --- SHAKA PLAYER ENGINE ---
+                    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.7.11/shaka-player.compiled.debug.js');
+                    if (shaka.Player.isBrowserSupported()) {
+                        const player = new shaka.Player(video);
+                        player.addEventListener('error', () => { errorDiv.style.display = 'flex'; });
+                        await player.load(cleanUrl);
+                        attemptPlay();
+                    } else {
+                        throw new Error("Shaka Player not supported in this browser");
+                    }
+
+                } else {
+                    // --- HLS.JS ENGINE (Default) ---
+                    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.4.10/hls.min.js');
+                    if (Hls.isSupported()) {
+                        const hls = new Hls();
+                        hls.loadSource(cleanUrl);
+                        hls.attachMedia(video);
+                        hls.on(Hls.Events.MANIFEST_PARSED, attemptPlay);
+                        hls.on(Hls.Events.ERROR, (e, data) => {
+                            if (data.fatal) errorDiv.style.display = 'flex';
+                        });
+                    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                        video.src = cleanUrl;
+                        video.addEventListener('loadedmetadata', attemptPlay);
+                    }
+                }
+            } catch (err) {
+                console.error("Player initialization failed:", err);
+                errorDiv.innerText = "Failed to load the requested player engine.";
+                errorDiv.style.display = 'flex';
+            }
+        }
+
+        initPlayer();
     </script>
 </body>
 </html>
