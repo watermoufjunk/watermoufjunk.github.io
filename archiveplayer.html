@@ -3,400 +3,466 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Archive Continuous Player - Vanilla JS</title>
+    <title>Archive Multi-Player Lab & Debugger</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Player Stylesheets -->
+    <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/dplayer/dist/DPlayer.min.css">
+
+    <!-- Player Scripts -->
+    <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dplayer/dist/DPlayer.min.js"></script>
+
     <style>
-        .custom-scrollbar::-webkit-scrollbar {
-            width: 6px;
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #1e293b; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
+        .active-segment { background-color: #eff6ff; border-left: 4px solid #2563eb; }
+        .engine-active { background-color: #2563eb !important; color: white !important; }
+        
+        /* Player Frame & Custom Controls */
+        .player-frame { min-height: 450px; background: #000; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
+        .vjs-default-skin { width: 100% !important; height: 100% !important; }
+        #dplayer { width: 100%; height: 100%; }
+
+        video::-webkit-media-controls { display:none !important; }
+        
+        .custom-control-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(transparent, rgba(0,0,0,0.8));
+            padding: 20px 15px 10px 15px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            z-index: 100;
+            opacity: 0;
+            transition: opacity 0.3s;
         }
-        .custom-scrollbar::-webkit-scrollbar-track {
-            background: #1e293b;
+        .player-frame:hover .custom-control-overlay { opacity: 1; }
+
+        .control-btn {
+            background: transparent;
+            color: white;
+            border: none;
+            cursor: pointer;
+            padding: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.1s;
         }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: #475569;
-            border-radius: 10px;
+        .control-btn:hover { transform: scale(1.1); color: #ef4444; }
+        .control-btn svg { width: 24px; height: 24px; fill: currentColor; }
+
+        /* Global Progress Bar Styling */
+        .global-progress-container {
+            position: absolute;
+            bottom: 55px;
+            left: 15px;
+            right: 15px;
+            height: 6px;
+            background: rgba(255,255,255,0.15);
+            cursor: pointer;
+            border-radius: 3px;
+            z-index: 110;
+            transition: height 0.2s;
         }
-        .active-segment {
-            background-color: #eff6ff;
-            border-left: 4px solid #2563eb;
+        .global-progress-container:hover { height: 10px; }
+        .global-progress-bar {
+            height: 100%;
+            background: #ef4444;
+            width: 0%;
+            border-radius: 3px;
+            position: relative;
+            transition: width 0.1s ease-out;
         }
+        .global-progress-bar.loading {
+            opacity: 0.6;
+            background: #f87171;
+            box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+        }
+        .global-time-tooltip {
+            position: absolute;
+            top: -35px;
+            right: 0;
+            background: rgba(0,0,0,0.9);
+            color: white;
+            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            white-space: nowrap;
+            pointer-events: none;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        }
+        .debug-line { font-family: monospace; font-size: 10px; border-bottom: 1px solid #e2e8f0; padding: 2px 0; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900 font-sans min-h-screen">
 
     <div class="max-w-7xl mx-auto p-4 md:p-8">
-        <!-- Header -->
         <header class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div class="flex items-center gap-3">
-                <div class="bg-blue-600 p-2 rounded-lg text-white shadow-lg">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"></path><path d="M10 9l5 3l-5 3z"></path></svg>
+                <div class="bg-red-600 p-2 rounded-lg text-white shadow-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"></path><path d="M12 9v4"></path><path d="M12 16v.01"></path></svg>
                 </div>
                 <div>
-                    <h1 class="text-2xl font-bold text-slate-800 tracking-tight">Archive Continuous Player</h1>
-                    <p class="text-slate-500 text-sm">Pure JS Version • 365s Segments • Seamless Preloading</p>
+                    <h1 class="text-2xl font-bold text-slate-800 tracking-tight">Archive Multi-Player & Global Progress</h1>
+                    <p class="text-slate-500 text-sm">Synchronized Timeline with Predictive Seeking</p>
                 </div>
             </div>
             <div id="meta-display" class="text-right hidden md:block border-l-2 pl-4 border-blue-200">
-                <div id="meta-title" class="text-sm font-bold text-slate-700 truncate max-w-xs">Waiting for URL...</div>
-                <div id="meta-date" class="text-xs text-slate-400 font-mono italic">--</div>
+                <div id="meta-title" class="text-sm font-bold text-slate-700 truncate max-w-xs">Waiting...</div>
+                <div id="total-duration-ui" class="text-xs text-slate-400 font-mono italic">--:--:--</div>
             </div>
         </header>
 
         <!-- Input Section -->
         <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-8">
             <div class="flex flex-col md:flex-row gap-3">
-                <input
-                    id="url-input"
-                    type="text"
-                    value="https://archive.org/details/CNNW_20220417_140000_Fareed_Zakaria_GPS"
-                    placeholder="Archive.org details URL..."
-                    class="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
-                />
-                <button
-                    id="load-btn"
-                    class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-3 rounded-lg shadow-md transition-all flex items-center justify-center gap-2"
-                >
-                    <span id="btn-text">Load Stream</span>
-                </button>
+                <input id="url-input" type="text" value="https://archive.org/details/CNNW_20220417_140000_Fareed_Zakaria_GPS" class="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm" />
+                <button id="load-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold px-8 py-3 rounded-lg shadow-md transition-all">Reload & Sync</button>
             </div>
-            <div id="error-msg" class="mt-4 p-3 bg-red-50 text-red-700 text-xs rounded border border-red-100 hidden"></div>
+            
+            <div id="ui-controls" class="mt-6 space-y-4 hidden">
+                <div class="flex flex-wrap items-center gap-4">
+                    <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Engine:</span>
+                    <div class="inline-flex flex-wrap bg-slate-100 p-1 rounded-lg border border-slate-200 gap-1">
+                        <button onclick="setPlayer('native')" id="btn-native" class="px-3 py-1.5 text-xs font-bold rounded-md engine-active">Native</button>
+                        <button onclick="setPlayer('videojs')" id="btn-videojs" class="px-3 py-1.5 text-xs font-bold rounded-md text-slate-500">Video.js</button>
+                        <button onclick="setPlayer('dplayer')" id="btn-dplayer" class="px-3 py-1.5 text-xs font-bold rounded-md text-slate-500">DPlayer</button>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <!-- Main Workspace (Hidden until load) -->
         <div id="main-content" class="hidden grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            
-            <!-- Video Player Section -->
             <div class="lg:col-span-8 space-y-4">
-                <div class="bg-black rounded-2xl shadow-2xl overflow-hidden aspect-video relative group">
-                    <div id="player-container" class="relative w-full h-full">
-                        <video id="player-a" class="absolute inset-0 w-full h-full z-10" controls crossorigin="anonymous"></video>
-                        <video id="player-b" class="absolute inset-0 w-full h-full z-0 hidden" controls crossorigin="anonymous"></video>
+                <div class="bg-black rounded-2xl shadow-2xl overflow-hidden aspect-video relative player-frame group">
+                    <div id="player-mount" class="w-full h-full"></div>
+                    
+                    <!-- Global Progress Bar Overlay -->
+                    <div id="global-progress-wrapper" class="global-progress-container opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div id="global-progress-bar" class="global-progress-bar">
+                            <span id="global-time-tooltip" class="global-time-tooltip">00:00</span>
+                        </div>
+                    </div>
+
+                    <!-- Custom Control Overlay -->
+                    <div class="custom-control-overlay">
+                        <button id="play-pause-btn" class="control-btn" title="Play/Pause">
+                            <svg id="play-icon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                            <svg id="pause-icon" viewBox="0 0 24 24" class="hidden"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                        </button>
+                        
+                        <button id="mute-btn" class="control-btn" title="Mute/Unmute">
+                            <svg id="unmute-icon" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+                            <svg id="mute-icon" viewBox="0 0 24 24" class="hidden"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>
+                        </button>
+
+                        <div id="global-pos-text-overlay" class="text-white text-xs font-mono ml-auto">00:00 / 00:00</div>
                     </div>
                 </div>
                 
-                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                    <div class="flex justify-between items-start mb-4">
-                        <div>
-                            <h2 id="current-seg-title" class="text-lg font-bold text-slate-800">Segment 1</h2>
-                            <div class="flex items-center gap-3 mt-1">
-                                <p id="current-seg-info" class="text-sm text-slate-500">Starting...</p>
-                                <span id="caption-status" class="hidden flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
-                                    Captions Loaded
-                                </span>
-                            </div>
-                        </div>
-                        <div class="flex gap-2">
-                            <button id="toggle-cc" class="p-2 rounded-lg transition-colors bg-blue-100 text-blue-600">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 15h4M13 15h4M7 9h10M4 5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"/></svg>
-                            </button>
-                            <button id="prev-btn" class="p-2 bg-slate-100 hover:bg-slate-200 rounded-lg">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m11 17-5-5 5-5M18 17l-5-5 5-5"/></svg>
-                            </button>
-                            <button id="next-btn" class="p-2 bg-slate-100 hover:bg-slate-200 rounded-lg">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m13 17 5-5-5-5M6 17l5-5-5-5"/></svg>
-                            </button>
-                        </div>
+                <div class="bg-slate-900 text-slate-300 p-4 rounded-xl shadow-inner overflow-hidden flex flex-col gap-2">
+                    <div class="flex justify-between items-center border-b border-slate-700 pb-2">
+                        <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Global Status</span>
+                        <span id="global-pos-text" class="text-[9px] font-mono text-red-400">00:00 / 00:00</span>
                     </div>
-
-                    <div class="flex flex-wrap gap-2 pt-4 border-t border-slate-100">
-                        <button id="copy-btn" class="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-bold transition-all">
-                            Copy M3U8
-                        </button>
-                        <button id="download-btn" class="flex items-center gap-2 px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-lg text-xs font-bold transition-all">
-                            Download Playlist
-                        </button>
-                    </div>
+                    <div id="debug-log" class="max-h-24 overflow-y-auto custom-scrollbar"></div>
                 </div>
             </div>
 
-            <!-- Sidebar / Playlist View -->
-            <div class="lg:col-span-4">
-                <div class="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col h-[600px]">
-                    <div class="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
-                        <span class="font-bold text-slate-700 text-sm">Segment Queue</span>
-                        <span id="queue-counter" class="text-[10px] bg-blue-100 text-blue-700 font-bold px-2 py-0.5 rounded-full">0 / 0</span>
-                    </div>
-                    <div id="segment-list" class="overflow-y-auto flex-1 divide-y divide-slate-100 custom-scrollbar">
-                        <!-- Segments inject here -->
-                    </div>
+            <div class="lg:col-span-4 space-y-4">
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col h-[500px]">
+                    <div class="p-3 bg-slate-50 border-b text-xs font-bold text-slate-500 uppercase">Segments</div>
+                    <div id="segment-list" class="overflow-y-auto flex-1 divide-y divide-slate-100 custom-scrollbar"></div>
                 </div>
             </div>
-        </div>
-
-        <!-- Initial State -->
-        <div id="empty-state" class="text-center py-32 bg-white rounded-2xl border-2 border-dashed border-slate-200 shadow-inner">
-            <div class="bg-slate-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 text-slate-300">
-                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"></path><path d="M10 9l5 3l-5 3z"></path></svg>
-            </div>
-            <h3 class="text-slate-600 font-bold text-lg">No stream loaded</h3>
-            <p class="text-slate-400 text-sm max-w-xs mx-auto">Paste a TV News Archive URL to generate 365s segments and play continuously.</p>
         </div>
     </div>
 
     <script>
         const ARCHIVE_BASE = 'https://archive.org/download';
-        const SEGMENT_DURATION = 365;
+        const SEG_DUR = 365;
 
-        // State variables
         let segments = [];
-        let currentSegmentIndex = 0;
-        let showCaptions = true;
-        let captionUrl = '';
-        let playlistContent = '';
+        let currentIndex = 0;
         let identifier = '';
+        let totalShowSeconds = 0;
+        let vttUrl = null;
+        let activeEngine = 'native';
+        let isSeekingLocally = false;
+        let pendingSeek = 0; // Guard for seeking while player is resetting
 
-        // DOM Elements
-        const urlInput = document.getElementById('url-input');
+        let vjsPlayer = null;
+        let dpInstance = null;
+
         const loadBtn = document.getElementById('load-btn');
-        const playerA = document.getElementById('player-a');
-        const playerB = document.getElementById('player-b');
-        let activePlayer = playerA;
-
-        const segmentList = document.getElementById('segment-list');
-        const metaTitle = document.getElementById('meta-title');
-        const metaDate = document.getElementById('meta-date');
-        const errorMsg = document.getElementById('error-msg');
-        const mainContent = document.getElementById('main-content');
-        const emptyState = document.getElementById('empty-state');
-        const currentSegTitle = document.getElementById('current-seg-title');
-        const currentSegInfo = document.getElementById('current-seg-info');
-        const queueCounter = document.getElementById('queue-counter');
-        const captionStatus = document.getElementById('caption-status');
-
-        // Functions
-        function parseArchiveUrl(url) {
-            try {
-                const urlObj = new URL(url.trim());
-                const parts = urlObj.pathname.split('/');
-                const detailsIndex = parts.indexOf('details');
-                if (detailsIndex !== -1 && parts[detailsIndex + 1]) {
-                    return parts[detailsIndex + 1].split('?')[0].split('#')[0];
-                }
-                return null;
-            } catch (e) { return null; }
-        }
-
-        async function fetchAndBuild() {
-            const inputUrl = urlInput.value;
-            identifier = parseArchiveUrl(inputUrl);
-            
-            if (!identifier) {
-                showError('Invalid Archive.org URL');
-                return;
-            }
-
-            setLoading(true);
-
-            try {
-                const resp = await fetch(`https://archive.org/metadata/${identifier}`);
-                if (!resp.ok) throw new Error('Metadata fetch failed');
-                const meta = await resp.json();
-
-                // Video selection
-                const videoFiles = meta.files?.filter(f => f.name.endsWith('.mp4') || f.name.endsWith('.mpeg2')) || [];
-                const primaryFile = videoFiles.find(f => f.format === 'h.264') || videoFiles[0];
-                if (!primaryFile) throw new Error('No video files found');
-
-                // Caption selection
-                const captionFile = meta.files?.find(f => f.name.endsWith('.vtt') || f.name.endsWith('_cc.vtt') || f.name.endsWith('.srt'));
-                captionUrl = captionFile ? `${ARCHIVE_BASE}/${identifier}/${captionFile.name}` : '';
-
-                // Metadata Display
-                metaTitle.textContent = meta.metadata.title || identifier;
-                metaDate.textContent = meta.metadata.date || '--';
-                
-                // Segments
-                const totalDur = parseInt(meta.metadata.duration?.[0] || meta.metadata.duration || 3600);
-                segments = [];
-                let start = 0;
-                while (start < totalDur) {
-                    const end = Math.min(start + SEGMENT_DURATION, totalDur);
-                    segments.push({
-                        title: `Segment ${segments.length + 1}`,
-                        start,
-                        end,
-                        duration: end - start,
-                        url: `${ARCHIVE_BASE}/${identifier}/${primaryFile.name}?start=${start}&end=${end}`
-                    });
-                    start += SEGMENT_DURATION;
-                }
-
-                // Playlist build
-                buildM3U8(meta.metadata.title || identifier);
-                
-                // Update UI
-                renderSegments();
-                // Play first segment normally (false = manual load)
-                playSegment(0, false);
-                
-                mainContent.classList.remove('hidden');
-                emptyState.classList.add('hidden');
-                errorMsg.classList.add('hidden');
-
-            } catch (err) {
-                showError(err.message);
-            } finally {
-                setLoading(false);
-            }
-        }
-
-        function buildM3U8(title) {
-            playlistContent = `#EXTM3U\n#PLAYLIST:${title}\n\n`;
-            segments.forEach(s => {
-                playlistContent += `#EXTINF:${s.duration.toFixed(2)}, ${title} - ${s.title}\n${s.url}\n\n`;
-            });
-        }
-
-        function renderSegments() {
-            segmentList.innerHTML = '';
-            segments.forEach((s, idx) => {
-                const btn = document.createElement('button');
-                btn.className = `w-full text-left p-4 transition-all flex gap-3 items-center border-l-4 ${currentSegmentIndex === idx ? 'active-segment border-blue-600' : 'hover:bg-slate-50 border-transparent'}`;
-                btn.innerHTML = `
-                    <div class="p-2 rounded-full ${currentSegmentIndex === idx ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-400'}">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <div class="text-xs font-bold truncate ${currentSegmentIndex === idx ? 'text-blue-700' : 'text-slate-700'}">${s.title}</div>
-                        <div class="text-[10px] text-slate-400 font-mono mt-0.5">${Math.floor(s.start/60)}m ${s.start%60}s - ${Math.floor(s.end/60)}m ${s.end%60}s</div>
-                    </div>
-                `;
-                btn.onclick = () => playSegment(idx, false); // Manual click
-                segmentList.appendChild(btn);
-            });
-            queueCounter.textContent = `${currentSegmentIndex + 1} / ${segments.length}`;
-        }
-
-        function getInactivePlayer() {
-            return activePlayer === playerA ? playerB : playerA;
-        }
-
-        function setupPlayer(player) {
-            player.onended = () => {
-                if (currentSegmentIndex < segments.length - 1) {
-                    playSegment(currentSegmentIndex + 1, true); // Auto transition
-                }
-            };
-        }
-
-        setupPlayer(playerA);
-        setupPlayer(playerB);
-
-        function loadVideoSource(player, segment) {
-            player.src = segment.url;
-            while (player.firstChild) player.removeChild(player.firstChild);
-            if (captionUrl) {
-                const track = document.createElement('track');
-                track.kind = 'captions';
-                track.label = 'English';
-                track.srclang = 'en';
-                track.src = captionUrl;
-                track.default = showCaptions;
-                player.appendChild(track);
-            }
-            player.load();
-        }
-
-        function playSegment(index, isAutoTransition) {
-            currentSegmentIndex = index;
-            const seg = segments[index];
-            const nextSeg = segments[index + 1];
-
-            // UI Updates
-            currentSegTitle.textContent = seg.title;
-            currentSegInfo.textContent = `Time: ${Math.floor(seg.start/60)}m ${seg.start%60}s - ${Math.floor(seg.end/60)}m ${seg.end%60}s`;
-            captionStatus.classList.toggle('hidden', !captionUrl);
-
-            if (isAutoTransition) {
-                // Seamless Swap: The inactive player should already have this segment loaded
-                const inactive = getInactivePlayer();
-                
-                // Swap classes
-                activePlayer.classList.add('hidden', 'z-0');
-                activePlayer.classList.remove('z-10');
-                activePlayer.pause(); // Stop old
-
-                inactive.classList.remove('hidden', 'z-0');
-                inactive.classList.add('z-10');
-                
-                // Update reference and play
-                activePlayer = inactive;
-                activePlayer.play();
-
-                // Preload NEXT segment on the now-inactive player
-                if (nextSeg) {
-                    const nextInactive = getInactivePlayer();
-                    loadVideoSource(nextInactive, nextSeg);
-                }
-
-            } else {
-                // Manual Load: Force load on active player
-                loadVideoSource(activePlayer, seg);
-                activePlayer.play();
-                
-                // Preload NEXT segment on inactive player
-                if (nextSeg) {
-                    loadVideoSource(getInactivePlayer(), nextSeg);
-                }
-            }
-            
-            renderSegments();
-        }
-
-        function setLoading(state) {
-            loadBtn.disabled = state;
-            document.getElementById('btn-text').textContent = state ? 'Analyzing...' : 'Load Stream';
-        }
-
-        function showError(msg) {
-            errorMsg.textContent = msg;
-            errorMsg.classList.remove('hidden');
-        }
-
-        // Event Listeners
-        loadBtn.onclick = fetchAndBuild;
+        const urlInput = document.getElementById('url-input');
+        const mount = document.getElementById('player-mount');
+        const globalBar = document.getElementById('global-progress-bar');
+        const globalTooltip = document.getElementById('global-time-tooltip');
+        const globalPosText = document.getElementById('global-pos-text');
+        const globalPosOverlay = document.getElementById('global-pos-text-overlay');
+        const globalWrapper = document.getElementById('global-progress-wrapper');
         
-        document.getElementById('prev-btn').onclick = () => {
-            if (currentSegmentIndex > 0) playSegment(currentSegmentIndex - 1, false);
-        };
+        const playPauseBtn = document.getElementById('play-pause-btn');
+        const playIcon = document.getElementById('play-icon');
+        const pauseIcon = document.getElementById('pause-icon');
+        const muteBtn = document.getElementById('mute-btn');
+        const muteIcon = document.getElementById('mute-icon');
+        const unmuteIcon = document.getElementById('unmute-icon');
 
-        document.getElementById('next-btn').onclick = () => {
-            if (currentSegmentIndex < segments.length - 1) playSegment(currentSegmentIndex + 1, false);
-        };
+        function log(msg, color='text-slate-400') {
+            const d = document.createElement('div');
+            d.className = `debug-line ${color}`;
+            d.innerHTML = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            const lb = document.getElementById('debug-log');
+            if (lb) lb.prepend(d);
+        }
 
-        document.getElementById('toggle-cc').onclick = () => {
-            showCaptions = !showCaptions;
-            const btn = document.getElementById('toggle-cc');
-            btn.classList.toggle('bg-blue-100', showCaptions);
-            btn.classList.toggle('text-blue-600', showCaptions);
-            btn.classList.toggle('bg-slate-100', !showCaptions);
-            btn.classList.toggle('text-slate-400', !showCaptions);
-            
-            // Toggle on both players to be safe
-            [playerA, playerB].forEach(p => {
-                if (p.textTracks && p.textTracks[0]) {
-                    p.textTracks[0].mode = showCaptions ? 'showing' : 'hidden';
+        function formatTime(s) {
+            if (isNaN(s) || s < 0) return '00:00';
+            const h = Math.floor(s / 3600);
+            const m = Math.floor((s % 3600) / 60);
+            const sec = Math.floor(s % 60);
+            return `${h > 0 ? h + ':' : ''}${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+        }
+
+        async function init() {
+            const val = urlInput.value.trim();
+            identifier = val.split('/details/')[1]?.split(/[?#]/)[0] || val;
+            if (!identifier) return;
+
+            try {
+                const r = await fetch(`https://archive.org/metadata/${identifier}`);
+                const data = await r.json();
+                
+                document.getElementById('meta-title').textContent = data.metadata.title;
+                totalShowSeconds = parseInt(data.metadata.duration || 3600);
+                document.getElementById('total-duration-ui').textContent = formatTime(totalShowSeconds);
+
+                const videoFile = (data.files || []).find(f => f.name.endsWith('.mp4') && f.format.includes('264'));
+                const sidecarVtt = (data.files || []).find(f => f.name.endsWith('.vtt'));
+                vttUrl = sidecarVtt ? `${ARCHIVE_BASE}/${identifier}/${sidecarVtt.name}` : null;
+
+                segments = [];
+                for (let s = 0; s < totalShowSeconds; s += SEG_DUR) {
+                    segments.push({
+                        url: `${ARCHIVE_BASE}/${identifier}/${videoFile.name}?start=${s}&end=${Math.min(s + SEG_DUR, totalShowSeconds)}`,
+                        startOffset: s,
+                        title: `Part ${segments.length + 1}`
+                    });
                 }
+
+                document.getElementById('main-content').classList.remove('hidden');
+                document.getElementById('ui-controls').classList.remove('hidden');
+                renderList();
+                setPlayer('native'); 
+                log(`Show Ready: ${formatTime(totalShowSeconds)}`, 'text-emerald-400');
+            } catch (e) { log(`Error: ${e.message}`, 'text-red-500'); }
+        }
+
+        function renderList() {
+            const list = document.getElementById('segment-list');
+            list.innerHTML = '';
+            segments.forEach((s, i) => {
+                const d = document.createElement('div');
+                d.className = `p-4 cursor-pointer border-l-4 transition-all ${currentIndex === i ? 'active-segment border-blue-600' : 'border-transparent hover:bg-slate-50'}`;
+                d.innerHTML = `<div class="text-xs font-bold">${s.title}</div><div class="text-[10px] text-slate-400">${formatTime(s.startOffset)}</div>`;
+                d.onclick = () => { 
+                    currentIndex = i; 
+                    pendingSeek = 0;
+                    updatePlayerSource(); 
+                    renderList(); 
+                };
+                list.appendChild(d);
             });
+        }
+
+        function renderProgress(globalSeconds, forceUIUpdate = false) {
+            if (isSeekingLocally && !forceUIUpdate) return;
+            
+            const percent = Math.min((globalSeconds / totalShowSeconds) * 100, 100);
+            globalBar.style.width = `${percent}%`;
+            globalTooltip.textContent = formatTime(globalSeconds);
+            const timeStr = `${formatTime(globalSeconds)} / ${formatTime(totalShowSeconds)}`;
+            globalPosText.textContent = timeStr;
+            globalPosOverlay.textContent = timeStr;
+        }
+
+        function updateGlobalProgressFromSegment(currentTimeInSegment) {
+            const globalSeconds = (currentIndex * SEG_DUR) + (currentTimeInSegment || 0);
+            renderProgress(globalSeconds);
+
+            let isPaused = true;
+            if (activeEngine === 'native') isPaused = document.getElementById('active-video')?.paused;
+            else if (activeEngine === 'videojs') isPaused = vjsPlayer?.paused();
+            else if (activeEngine === 'dplayer') isPaused = dpInstance?.video.paused;
+
+            playIcon.classList.toggle('hidden', !isPaused);
+            pauseIcon.classList.toggle('hidden', isPaused);
+        }
+
+        globalWrapper.onclick = (e) => {
+            if (totalShowSeconds <= 0) return;
+            
+            const rect = globalWrapper.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const percent = x / rect.width;
+            const targetSeconds = totalShowSeconds * percent;
+            
+            isSeekingLocally = true;
+            globalBar.classList.add('loading');
+            renderProgress(targetSeconds, true);
+            
+            const nextIndex = Math.floor(targetSeconds / SEG_DUR);
+            const internalSeek = targetSeconds % SEG_DUR;
+            
+            if (nextIndex === currentIndex) {
+                performInternalSeek(internalSeek);
+                isSeekingLocally = false;
+                globalBar.classList.remove('loading');
+            } else {
+                currentIndex = nextIndex;
+                pendingSeek = internalSeek;
+                updatePlayerSource(internalSeek);
+                renderList();
+            }
         };
 
-        document.getElementById('copy-btn').onclick = () => {
-            const el = document.createElement('textarea');
-            el.value = playlistContent;
-            document.body.appendChild(el);
-            el.select();
-            document.execCommand('copy');
-            document.body.removeChild(el);
+        function performInternalSeek(time) {
+            try {
+                if (activeEngine === 'native') document.getElementById('active-video').currentTime = time;
+                else if (activeEngine === 'videojs' && vjsPlayer) vjsPlayer.currentTime(time);
+                else if (activeEngine === 'dplayer' && dpInstance) dpInstance.seek(time);
+            } catch(e) { log(`Seek error: ${e.message}`, 'text-red-400'); }
+        }
+
+        async function safePlay(target) {
+            try {
+                if (!target) return;
+                const promise = target.play();
+                if (promise !== undefined) {
+                    await promise;
+                }
+            } catch (err) {
+                if (err.name !== 'AbortError') {
+                    log(`Play error: ${err.name}`, 'text-red-400');
+                }
+            }
+        }
+
+        playPauseBtn.onclick = () => {
+            if (activeEngine === 'native') {
+                const v = document.getElementById('active-video');
+                v.paused ? safePlay(v) : v.pause();
+            } else if (activeEngine === 'videojs' && vjsPlayer) {
+                vjsPlayer.paused() ? safePlay(vjsPlayer) : vjsPlayer.pause();
+            } else if (activeEngine === 'dplayer' && dpInstance) {
+                dpInstance.toggle();
+            }
         };
 
-        document.getElementById('download-btn').onclick = () => {
-            const blob = new Blob([playlistContent], { type: 'application/x-mpegURL' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = `${identifier || 'archive'}_365s.m3u8`;
-            link.click();
+        muteBtn.onclick = () => {
+            let isMuted = false;
+            if (activeEngine === 'native') {
+                const v = document.getElementById('active-video');
+                v.muted = !v.muted;
+                isMuted = v.muted;
+            } else if (activeEngine === 'videojs' && vjsPlayer) {
+                vjsPlayer.muted(!vjsPlayer.muted());
+                isMuted = vjsPlayer.muted();
+            } else if (activeEngine === 'dplayer' && dpInstance) {
+                dpInstance.video.muted = !dpInstance.video.muted;
+                isMuted = dpInstance.video.muted;
+            }
+            unmuteIcon.classList.toggle('hidden', isMuted);
+            muteIcon.classList.toggle('hidden', !isMuted);
         };
 
+        function setPlayer(type) {
+            if (vjsPlayer) { vjsPlayer.dispose(); vjsPlayer = null; }
+            if (dpInstance) { dpInstance.destroy(); dpInstance = null; }
+            mount.innerHTML = ''; 
+            activeEngine = type;
+            pendingSeek = 0;
+            
+            document.querySelectorAll('[id^="btn-"]').forEach(b => b.classList.remove('engine-active'));
+            document.getElementById(`btn-${type}`).classList.add('engine-active');
+
+            if (type === 'native') {
+                mount.innerHTML = `<video id="active-video" class="w-full h-full" crossorigin="anonymous"></video>`;
+            } else if (type === 'videojs') {
+                mount.innerHTML = `<video id="active-video" class="video-js vjs-default-skin" crossorigin="anonymous"></video>`;
+            } else if (type === 'dplayer') {
+                mount.innerHTML = `<div id="dplayer"></div>`;
+            }
+            updatePlayerSource();
+        }
+
+        function updatePlayerSource(seekTo = 0) {
+            if (!segments[currentIndex]) return;
+            const src = segments[currentIndex].url;
+            pendingSeek = seekTo;
+            
+            if (activeEngine === 'native') {
+                const v = document.getElementById('active-video');
+                if (!v) return;
+                v.src = src;
+                if (vttUrl) {
+                    const track = document.createElement('track');
+                    track.kind = 'captions'; track.label = 'English'; track.srclang = 'en'; track.src = vttUrl; track.default = true;
+                    v.appendChild(track);
+                }
+                v.ontimeupdate = () => updateGlobalProgressFromSegment(v.currentTime);
+                v.onloadedmetadata = () => { 
+                    if(pendingSeek > 0) v.currentTime = pendingSeek; 
+                    pendingSeek = 0;
+                    isSeekingLocally = false;
+                    globalBar.classList.remove('loading');
+                };
+                safePlay(v);
+            } 
+            else if (activeEngine === 'videojs') {
+                vjsPlayer = videojs('active-video', { fluid: true, controls: false, html5: { nativeTextTracks: true } });
+                vjsPlayer.src({ src, type: 'video/mp4' });
+                if (vttUrl) vjsPlayer.addRemoteTextTrack({ src: vttUrl, kind: 'captions', label: 'English', default: true }, false);
+                vjsPlayer.on('timeupdate', () => updateGlobalProgressFromSegment(vjsPlayer.currentTime()));
+                vjsPlayer.ready(() => { 
+                    if(pendingSeek > 0) vjsPlayer.currentTime(pendingSeek); 
+                    pendingSeek = 0;
+                    safePlay(vjsPlayer);
+                    isSeekingLocally = false;
+                    globalBar.classList.remove('loading');
+                });
+            }
+            else if (activeEngine === 'dplayer') {
+                dpInstance = new DPlayer({
+                    container: document.getElementById('dplayer'),
+                    screenshot: false,
+                    controls: false,
+                    video: { url: src, type: 'normal' },
+                    subtitle: vttUrl ? { url: vttUrl, type: 'webvtt' } : null
+                });
+                dpInstance.on('timeupdate', () => {
+                    if (dpInstance?.video) updateGlobalProgressFromSegment(dpInstance.video.currentTime);
+                });
+                dpInstance.on('canplay', () => {
+                    if(pendingSeek > 0) dpInstance.seek(pendingSeek);
+                    pendingSeek = 0;
+                    isSeekingLocally = false;
+                    globalBar.classList.remove('loading');
+                });
+                dpInstance.play();
+            }
+        }
+
+        loadBtn.onclick = init;
     </script>
 </body>
 </html>
