@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus TV - Ultimate Player</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Player Libraries (Local Engines) -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
+    <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
+    <script src="https://cdn.jsdelivr.net/npm/artplayer/dist/artplayer.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.3.5/shaka-player.compiled.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dplayer/dist/DPlayer.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/clappr@latest/dist/clappr.min.js"></script>
+    
+    <!-- Video.js -->
+    <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
+    <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
+    
+    <!-- MediaElement.js -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/mediaelement/7.0.5/mediaelementplayer.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mediaelement/7.0.5/mediaelement-and-player.min.js"></script>
+
+    <!-- OpenPlayerJS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/openplayerjs@latest/dist/openplayer.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/openplayerjs@latest/dist/openplayer.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0d1117; 
+            color: white;
+            overflow-x: hidden;
+        }
+
+        .hls-video, .api-frame, .player-mount {
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+        }
+
+        /* Glassmorphism UI */
+        .glass-controls {
+            background-color: rgba(255, 255, 255, 0.06); 
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+        }
+
+        .glass-input, .glass-btn {
+            background-color: rgba(255, 255, 255, 0.04);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: white;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .glass-btn:hover {
+            background-color: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .active-mode {
+            background-color: rgba(99, 102, 241, 0.3) !important;
+            border-color: rgba(99, 102, 241, 0.6) !important;
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.2);
+            color: white !important;
+        }
+
+        /* Toggle Switch Styling */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 34px;
+            height: 20px;
+        }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(255, 255, 255, 0.1);
+            transition: .4s;
+            border-radius: 20px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 14px; width: 14px;
+            left: 3px; bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider { background-color: #6366f1; }
+        input:checked + .slider:before { transform: translateX(14px); }
+
+        /* Plyr / VideoJS / ME overrides */
+        .plyr--full-ui input[type=range] { color: #818cf8; }
+        .plyr__control--overlaid { background: rgba(99, 102, 241, 0.8); }
+        .plyr--video { border-radius: 2rem; }
+        .vjs-theme-city .vjs-big-play-button { border-radius: 50%; }
+
+        /* Experimental Filters */
+        .mirror-mode video, .mirror-mode iframe { transform: scaleX(-1); }
+        .grayscale-mode video, .grayscale-mode iframe { filter: grayscale(1); }
+
+        /* Custom Scrollbar */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Spinner */
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top: 4px solid #c4b5fd;
+            border-radius: 50%;
+            width: 48px;
+            height: 48px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        #controls-overlay {
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+        
+        .player-container:hover #controls-overlay, 
+        .controls-visible #controls-overlay {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .hide-ui #controls-overlay {
+            display: none !important;
+        }
+
+        /* Debug Panel Stats Styling */
+        #debug-panel {
+            background-color: rgba(13, 17, 23, 0.95);
+            backdrop-filter: blur(25px);
+            border-left: 1px solid rgba(255, 255, 255, 0.1);
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: -10px 0 30px rgba(0,0,0,0.5);
+        }
+        #debug-panel.hidden-panel { transform: translateX(100%); }
+
+        .stat-label { @apply text-white/40 uppercase tracking-tighter text-[9px] font-bold; }
+        .stat-value { @apply font-mono text-[10px] text-white/90; }
+        .stat-row { @apply flex justify-between items-baseline border-b border-white/5 py-1; }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-start min-h-screen p-4 md:p-8 space-y-6">
+
+    <!-- Header Section -->
+    <div class="w-full max-w-5xl flex flex-col md:flex-row items-center justify-between gap-4">
+        <div class="flex flex-col items-center md:items-start text-left">
+            <h1 class="text-indigo-400 font-black text-4xl tracking-tighter italic leading-none">NEXUS TV</h1>
+            <span class="text-[10px] uppercase tracking-[0.4em] text-white/30 font-bold mt-1">Multi-Engine Laboratory</span>
+        </div>
+        <div id="engine-status" class="text-[10px] font-black bg-indigo-500/10 text-indigo-300 px-4 py-2 rounded-full border border-indigo-500/20 uppercase tracking-widest text-center min-w-[150px] backdrop-blur-md">
+            Native Engine
+        </div>
+    </div>
+
+    <!-- Engine Selector Dashboard -->
+    <div class="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Local Engines Section -->
+        <div class="glass-controls p-4 flex flex-col space-y-3">
+            <div class="flex items-center justify-between px-1">
+                <span class="text-[10px] font-black text-white/30 uppercase tracking-[0.2em]">Browser Engines (Local)</span>
+                <span class="text-[9px] font-bold text-indigo-400/60 uppercase">High Control</span>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <button onclick="setEngine('native')" id="btn-native" class="engine-btn glass-btn px-3 py-2 rounded-xl text-[9px] font-extrabold active-mode">NATIVE</button>
+                <button onclick="setEngine('library')" id="btn-library" class="engine-btn glass-btn px-3 py-2 rounded-xl text-[9px] font-extrabold">HLS.JS</button>
+                <button onclick="setEngine('videojs_local')" id="btn-videojs_local" class="engine-btn glass-btn px-3 py-2 rounded-xl text-[9px] font-extrabold">VIDEO.JS</button>
+                <button onclick="setEngine('plyr')" id="btn-plyr" class="engine-btn glass-btn px-3 py-2 rounded-xl text-[9px] font-extrabold">PLYR</button>
+                <button onclick="setEngine('artplayer')" id="btn-artplayer" class="engine-btn glass-btn px-3 py-2 rounded-xl text-[9px] font-extrabold">ARTPLAYER</button>
+                <button onclick="setEngine('dplayer')" id="btn-dplayer" class="engine-btn glass-btn px-3 py-2 rounded-xl text-[9px] font-extrabold">DPLAYER</button>
+                <button onclick="setEngine('openplayer')" id="btn-openplayer" class="engine-btn glass-btn px-3 py-2 rounded-xl text-[9px] font-extrabold">OPENPLAYER</button>
+                <button onclick="setEngine('mejs')" id="btn-mejs" class="engine-btn glass-btn px-3 py-2 rounded-xl text-[9px] font-extrabold">MEDIAELEMENT</button>
+                <button onclick="setEngine('clappr_local')" id="btn-clappr_local" class="engine-btn glass-btn px-3 py-2 rounded-xl text-[9px] font-extrabold">CLAPPR</button>
+                <button onclick="setEngine('shaka')" id="btn-shaka" class="engine-btn glass-btn px-3 py-2 rounded-xl text-[9px] font-extrabold">SHAKA</button>
+            </div>
+        </div>
+
+        <!-- Cloud API Engines Section -->
+        <div class="glass-controls p-4 flex flex-col space-y-3">
+            <div class="flex items-center justify-between px-1">
+                <span class="text-[10px] font-black text-white/30 uppercase tracking-[0.2em]">Cloud API Wrappers</span>
+                <span class="text-[9px] font-bold text-indigo-400/60 uppercase">External Host</span>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <button onclick="setEngine('clappr')" id="btn-clappr" class="engine-btn glass-btn px-3 py-2 rounded-xl text-[9px] font-extrabold">CLAPPR</button>
+                <button onclick="setEngine('videojs')" id="btn-videojs" class="engine-btn glass-btn px-3 py-2 rounded-xl text-[9px] font-extrabold">VIDEO.JS</button>
+                <button onclick="setEngine('jwplayer')" id="btn-jwplayer" class="engine-btn glass-btn px-3 py-2 rounded-xl text-[9px] font-extrabold">JWPLAYER</button>
+                <button onclick="setEngine('flowplayer')" id="btn-flowplayer" class="engine-btn glass-btn px-3 py-2 rounded-xl text-[9px] font-extrabold">FLOWPLAYER</button>
+                <button onclick="setEngine('mediaelement')" id="btn-mediaelement" class="engine-btn glass-btn px-3 py-2 rounded-xl text-[9px] font-extrabold">MEDIAELEMENT</button>
+                <button onclick="setEngine('hlsjs')" id="btn-hlsjs" class="engine-btn glass-btn px-3 py-2 rounded-xl text-[9px] font-extrabold">HLSJS</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- URL Input Area -->
+    <div class="w-full max-w-5xl flex space-x-2">
+        <input type="text" id="url-input" placeholder="Enter HLS .m3u8 link..." class="flex-grow glass-input px-6 py-4 rounded-2xl text-sm font-medium focus:ring-2 ring-indigo-500/40" value="https://fast-channels-prod.akamaized.net/out/v1/879ab979a42c4b03a4f49981c87bc271/live.m3u8">
+        <button onclick="loadStream()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-10 py-4 rounded-2xl font-black transition-all shadow-lg active:scale-95 text-sm uppercase tracking-wider">Load</button>
+    </div>
+
+    <!-- Extended Settings Row -->
+    <div class="w-full max-w-5xl glass-controls p-4 flex flex-wrap gap-x-6 gap-y-4 items-center justify-center md:justify-start">
+        <div class="flex items-center space-x-3">
+            <label class="switch"><input type="checkbox" id="opt-autoplay" checked><span class="slider"></span></label>
+            <span class="text-[9px] font-black uppercase tracking-widest text-white/50">Autoplay</span>
+        </div>
+        <div class="flex items-center space-x-3">
+            <label class="switch"><input type="checkbox" id="opt-loop" checked><span class="slider"></span></label>
+            <span class="text-[9px] font-black uppercase tracking-widest text-white/50">Loop</span>
+        </div>
+        <div class="flex items-center space-x-3">
+            <label class="switch"><input type="checkbox" id="opt-muted"><span class="slider"></span></label>
+            <span class="text-[9px] font-black uppercase tracking-widest text-white/50">Muted</span>
+        </div>
+        <div class="flex items-center space-x-3">
+            <label class="switch"><input type="checkbox" id="opt-show-controls" checked><span class="slider"></span></label>
+            <span class="text-[9px] font-black uppercase tracking-widest text-indigo-400/80">Custom UI</span>
+        </div>
+        <div class="flex items-center space-x-3 border-l border-white/10 pl-4">
+            <label class="switch"><input type="checkbox" id="opt-original-ui"><span class="slider"></span></label>
+            <span class="text-[9px] font-black uppercase tracking-widest text-indigo-300">Original UI</span>
+        </div>
+        <!-- Experimental/Test Toggles -->
+        <div class="flex items-center space-x-3 border-l border-white/10 pl-4">
+            <label class="switch"><input type="checkbox" id="opt-mirror"><span class="slider"></span></label>
+            <span class="text-[9px] font-black uppercase tracking-widest text-white/50">Mirror</span>
+        </div>
+        <div class="flex items-center space-x-3">
+            <label class="switch"><input type="checkbox" id="opt-grayscale"><span class="slider"></span></label>
+            <span class="text-[9px] font-black uppercase tracking-widest text-white/50">Grayscale</span>
+        </div>
+        <div class="flex items-center space-x-3">
+            <label class="switch"><input type="checkbox" id="opt-context-lock" checked><span class="slider"></span></label>
+            <span class="text-[9px] font-black uppercase tracking-widest text-white/50">Context Lock</span>
+        </div>
+        <div class="flex-grow"></div>
+        <input type="text" id="opt-poster" placeholder="Poster Image URL" class="glass-input px-4 py-2 rounded-xl text-[10px] w-full md:w-64">
+    </div>
+
+    <!-- Player Container -->
+    <div id="player-container" class="player-container w-full max-w-5xl aspect-video rounded-[2.5rem] shadow-2xl overflow-hidden bg-black border border-white/5 relative group">
+        
+        <div id="video-mount" class="h-full w-full">
+            <video id="main-video" class="hls-video object-contain" autoplay playsinline crossorigin="anonymous"></video>
+        </div>
+        <div id="artplayer-mount" class="player-mount hidden"></div>
+        <div id="dplayer-mount" class="player-mount hidden"></div>
+        <div id="clappr-mount" class="player-mount hidden"></div>
+        <div id="mejs-mount" class="player-mount hidden"></div>
+        <iframe id="api-frame" class="api-frame hidden border-none" allow="autoplay; fullscreen; picture-in-picture"></iframe>
+
+        <!-- Global Loader -->
+        <div id="loader" class="absolute inset-0 bg-black/95 flex flex-col justify-center items-center z-30 transition-opacity duration-500 pointer-events-none opacity-0">
+            <div class="spinner"></div>
+            <p class="text-white font-black mt-8 text-xl tracking-tighter italic">NEXUS TV</p>
+            <p id="loader-text" class="text-indigo-400 mt-2 text-[10px] uppercase tracking-[0.3em] font-bold">Syncing Source...</p>
+        </div>
+
+        <!-- Debug Stats Panel -->
+        <div id="debug-panel" class="absolute inset-y-0 right-0 w-80 z-40 p-6 hidden-panel flex flex-col space-y-4 overflow-y-auto no-scrollbar">
+            <div class="flex justify-between items-center sticky top-0 bg-transparent pb-4">
+                <h3 class="text-[11px] font-black uppercase tracking-[0.2em] text-indigo-400">Advanced Debugger</h3>
+                <button onclick="toggleStats()" class="text-white/40 hover:text-white transition-colors"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg></button>
+            </div>
+            
+            <div class="space-y-1">
+                <p class="text-[8px] font-black text-indigo-500/60 uppercase mb-2 text-left">Media Pipeline</p>
+                <div class="stat-row"><span class="stat-label">Resolution</span><span id="stats-res" class="stat-value">0x0</span></div>
+                <div class="stat-row"><span class="stat-label">Ready State</span><span id="stats-ready" class="stat-value">0</span></div>
+                <div class="stat-row"><span class="stat-label">Network State</span><span id="stats-network" class="stat-value">0</span></div>
+                <div class="stat-row"><span class="stat-label">Buffer</span><span id="stats-buffer" class="stat-value">0.00s</span></div>
+                <div class="stat-row"><span class="stat-label">Vol / Mute</span><span id="stats-vol" class="stat-value">0% / No</span></div>
+            </div>
+
+            <div class="space-y-1">
+                <p class="text-[8px] font-black text-indigo-500/60 uppercase mb-2 text-left">Frame Performance</p>
+                <div class="stat-row"><span class="stat-label">Decoded</span><span id="stats-decoded" class="stat-value">0</span></div>
+                <div class="stat-row"><span class="stat-label">Dropped</span><span id="stats-dropped" class="stat-value text-red-400">0</span></div>
+            </div>
+
+            <div id="hls-internals" class="space-y-1 hidden">
+                <p class="text-[8px] font-black text-indigo-500/60 uppercase mb-2 text-left">HLS.JS Context</p>
+                <div class="stat-row"><span class="stat-label">Quality Level</span><span id="stats-hls-level" class="stat-value">N/A</span></div>
+                <div class="stat-row"><span class="stat-label">Latency</span><span id="stats-hls-latency" class="stat-value">0s</span></div>
+            </div>
+
+            <div class="flex-grow flex flex-col min-h-0 pt-2">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-[9px] font-bold uppercase text-white/30 tracking-tighter">Raw Event Stream</span>
+                    <button onclick="clearLogs()" class="text-[9px] uppercase text-indigo-400 font-bold">Flush</button>
+                </div>
+                <div id="log-terminal" class="flex-grow overflow-y-auto bg-black/40 rounded-xl p-3 font-mono text-[9px] leading-relaxed text-white/50 space-y-1.5 border border-white/5 no-scrollbar"></div>
+            </div>
+        </div>
+
+        <!-- Custom Controls UI -->
+        <div id="controls-overlay" class="absolute inset-x-6 bottom-6 p-5 z-20 glass-controls">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center space-x-4">
+                    <button onclick="togglePlay()" class="text-white hover:text-indigo-300 transition-colors">
+                        <svg id="play-icon" class="w-8 h-8" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                    </button>
+                    <div class="flex flex-col text-left">
+                        <span class="text-[10px] font-black text-indigo-400 uppercase tracking-widest leading-none mb-1 text-left">Nexus Output</span>
+                        <span id="timestamp" class="text-xs font-mono text-white/50">00:00</span>
+                    </div>
+                </div>
+                
+                <div class="flex items-center space-x-6">
+                    <button onclick="toggleStats()" class="text-white/70 hover:text-white transition-colors" title="Debug Stats">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" /></svg>
+                    </button>
+                    <button id="cc-btn" onclick="toggleCC()" class="text-white/70 hover:text-white transition-colors hidden" title="Closed Captions">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M19 4H5c-1.11 0-2 .9-2 2v12c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-8 7H9.5v-.5h-2v3h2V13H11v1c0 .55-.45 1-1 1H7c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v1zm7 0h-1.5v-.5h-2v3h2V13H18v1c0 .55-.45 1-1 1h-3c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v1z"/></svg>
+                    </button>
+                    <div class="flex items-center space-x-3 bg-white/5 rounded-xl px-4 py-2 border border-white/5">
+                        <button onclick="toggleMute()" class="text-white/70 hover:text-white"><svg id="vol-icon" class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg></button>
+                        <input type="range" id="vol-slider" min="0" max="1" step="0.01" value="1" class="w-20 accent-indigo-400">
+                    </div>
+                    <button onclick="toggleFS()" class="text-white/70 hover:text-indigo-300"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5m-4 11l-5-5m0 5h4m0-5l5 5"/></svg></button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const video = document.getElementById('main-video');
+        const frame = document.getElementById('api-frame');
+        const artMount = document.getElementById('artplayer-mount');
+        const dplayerMount = document.getElementById('dplayer-mount');
+        const clapprMount = document.getElementById('clappr-mount');
+        const mejsMount = document.getElementById('mejs-mount');
+        const videoMount = document.getElementById('video-mount');
+        const loader = document.getElementById('loader');
+        const timestamp = document.getElementById('timestamp');
+        const volSlider = document.getElementById('vol-slider');
+        const playIcon = document.getElementById('play-icon');
+        const terminal = document.getElementById('log-terminal');
+        const playerContainer = document.getElementById('player-container');
+        const ccBtn = document.getElementById('cc-btn');
+
+        const READY_STATES = ['HAVE_NOTHING', 'HAVE_METADATA', 'HAVE_CURRENT_DATA', 'HAVE_FUTURE_DATA', 'HAVE_ENOUGH_DATA'];
+        const NETWORK_STATES = ['NETWORK_EMPTY', 'NETWORK_IDLE', 'NETWORK_LOADING', 'NETWORK_NO_SOURCE'];
+
+        let currentEngine = 'native';
+        let hlsInstance = null;
+        let plyrInstance = null;
+        let artInstance = null;
+        let dplayerInstance = null;
+        let clapprInstance = null;
+        let shakaInstance = null;
+        let vjsInstance = null;
+        let mejsInstance = null;
+        let openPlayerInstance = null;
+        let hlsErrorCount = 0;
+        const apiBase = "https://anym3u8player.com/ultimate-player-generator/player.php";
+
+        const safeSetText = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+
+        function logEvent(msg, type = 'info') {
+            const time = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const entry = document.createElement('div');
+            entry.className = `border-l-2 pl-2 break-all transition-all duration-300 ${type === 'error' ? 'border-red-500 text-red-400 bg-red-500/5' : type === 'warn' ? 'border-yellow-500 text-yellow-300' : 'border-indigo-500/30'}`;
+            entry.innerHTML = `<span class="opacity-30 mr-1 text-[7px] font-mono">${time}</span> ${msg}`;
+            if (terminal) { terminal.appendChild(entry); terminal.scrollTop = terminal.scrollHeight; }
+            if (terminal && terminal.childNodes.length > 100) terminal.removeChild(terminal.firstChild);
+        }
+
+        function clearLogs() { if (terminal) terminal.innerHTML = ''; logEvent("Log flushed."); }
+        function toggleStats() { document.getElementById('debug-panel')?.classList.toggle('hidden-panel'); }
+
+        async function safePlay() {
+            if (!video) return;
+            try {
+                logEvent("Attempting unmuted play()...");
+                await video.play();
+                logEvent("Playback successful.");
+            } catch (err) {
+                if (err.name === 'NotAllowedError') {
+                    logEvent("Unmuted autoplay blocked. Retrying muted...", 'warn');
+                    video.muted = true;
+                    video.play().catch(e => logEvent("Autoplay failure: " + e.name, 'error'));
+                } else if (err.name !== 'AbortError') {
+                    logEvent("Media Pipeline Error: " + err.name, 'error');
+                }
+            }
+        }
+
+        async function destroyInstances() {
+            logEvent(`DESTROY: Wiping ${currentEngine} context.`);
+            video.pause();
+            video.controls = false;
+            video.removeAttribute('src');
+            video.load();
+
+            if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
+            if (plyrInstance) { plyrInstance.destroy(); plyrInstance = null; }
+            if (artInstance) { artInstance.destroy(); artInstance = null; }
+            if (dplayerInstance) { dplayerInstance.destroy(); dplayerInstance = null; }
+            if (clapprInstance) { clapprInstance.destroy(); clapprInstance = null; }
+            if (shakaInstance) { shakaInstance.destroy(); shakaInstance = null; }
+            if (vjsInstance) { vjsInstance.dispose(); vjsInstance = null; }
+            if (mejsInstance) { mejsInstance.remove(); mejsInstance = null; }
+            if (openPlayerInstance) { openPlayerInstance.destroy(); openPlayerInstance = null; }
+            
+            hlsErrorCount = 0;
+            logEvent("Cleanup complete.");
+        }
+
+        async function loadStream() {
+            const url = document.getElementById('url-input')?.value.trim();
+            if (!url) return;
+
+            const autoplay = document.getElementById('opt-autoplay').checked;
+            const loop = document.getElementById('opt-loop').checked;
+            const muted = document.getElementById('opt-muted').checked;
+            const showCustomUI = document.getElementById('opt-show-controls').checked;
+            const showOriginalUI = document.getElementById('opt-original-ui').checked;
+            const poster = document.getElementById('opt-poster').value.trim();
+
+            // Experimental Filters
+            playerContainer.classList.toggle('mirror-mode', document.getElementById('opt-mirror').checked);
+            playerContainer.classList.toggle('grayscale-mode', document.getElementById('opt-grayscale').checked);
+            
+            // Context Lock
+            playerContainer.oncontextmenu = document.getElementById('opt-context-lock').checked ? (e) => e.preventDefault() : null;
+
+            logEvent(`BOOT: engine=${currentEngine}`);
+            loader.style.opacity = 1;
+            safeSetText('loader-text', "Configuring Media Pipeline...");
+
+            await destroyInstances();
+
+            ccBtn.classList.add('hidden');
+            video.classList.add('hidden');
+            frame.classList.add('hidden');
+            artMount.classList.add('hidden');
+            dplayerMount.classList.add('hidden');
+            clapprMount.classList.add('hidden');
+            mejsMount.classList.add('hidden');
+            videoMount.classList.remove('hidden');
+            document.getElementById('controls-overlay').style.display = showCustomUI ? 'block' : 'none';
+            playerContainer.classList.toggle('hide-ui', !showCustomUI);
+
+            const apiEngines = ['clappr', 'videojs', 'jwplayer', 'flowplayer', 'mediaelement', 'hlsjs'];
+            
+            if (apiEngines.includes(currentEngine)) {
+                logEvent(`Mounting Cloud Wrapper: ${currentEngine}`);
+                frame.classList.remove('hidden');
+                videoMount.classList.add('hidden');
+                const params = new URLSearchParams({
+                    player: currentEngine, url: url, autoplay: autoplay ? 1 : 0, muted: muted ? 1 : 0, loop: loop ? 1 : 0, quality: 1, speed: 1, pip: 1, fullscreen: 1, unmute_btn: 1, theme: 'minimal', controls: showOriginalUI ? 'auto' : 'hidden'
+                });
+                if (poster) params.append('poster', poster);
+                frame.src = `${apiBase}?${params.toString()}`;
+                setTimeout(() => loader.style.opacity = 0, 1500);
+            } 
+            else if (currentEngine === 'artplayer') {
+                videoMount.classList.add('hidden');
+                artMount.classList.remove('hidden');
+                artInstance = new Artplayer({
+                    container: '#artplayer-mount', url: url, poster: poster || '', type: 'm3u8', autoplay: autoplay, muted: muted, loop: loop, fullscreen: true, controls: showOriginalUI, customType: { m3u8: (v, u) => { if (Hls.isSupported()) { const hls = new Hls(); hls.loadSource(u); hls.attachMedia(v); } else { v.src = u; } } }
+                });
+                artInstance.on('ready', () => loader.style.opacity = 0);
+            }
+            else if (currentEngine === 'videojs_local') {
+                video.classList.remove('hidden');
+                vjsInstance = videojs(video, { autoplay: autoplay, muted: muted, loop: loop, controls: showOriginalUI, sources: [{ src: url, type: 'application/x-mpegURL' }] });
+                vjsInstance.ready(() => loader.style.opacity = 0);
+            }
+            else if (currentEngine === 'mejs') {
+                videoMount.classList.add('hidden');
+                mejsMount.classList.remove('hidden');
+                mejsMount.innerHTML = `<video id="mejs-vid" class="mejs-player" width="100%" height="100%" preload="auto"></video>`;
+                mejsInstance = new MediaElementPlayer('mejs-vid', {
+                    pluginPath: 'https://cdnjs.cloudflare.com/ajax/libs/mediaelement/7.0.5/',
+                    success: (me, node) => { me.setSrc(url); if (autoplay) me.play(); }
+                });
+                loader.style.opacity = 0;
+            }
+            else if (currentEngine === 'openplayer') {
+                video.classList.remove('hidden');
+                openPlayerInstance = new OpenPlayerJS(video);
+                openPlayerInstance.init();
+                openPlayerInstance.src = { src: url, type: 'application/x-mpegURL' };
+                loader.style.opacity = 0;
+            }
+            else if (currentEngine === 'dplayer') {
+                videoMount.classList.add('hidden'); dplayerMount.classList.remove('hidden');
+                dplayerInstance = new DPlayer({ container: dplayerMount, autoplay: autoplay, video: { url: url, type: 'hls' }, loop: loop, muted: muted });
+                loader.style.opacity = 0;
+            }
+            else if (currentEngine === 'clappr_local') {
+                videoMount.classList.add('hidden'); clapprMount.classList.remove('hidden');
+                clapprInstance = new Clappr.Player({ source: url, parentId: "#clappr-mount", autoPlay: autoplay, mute: muted, loop: loop, width: '100%', height: '100%', chromeless: !showOriginalUI });
+                loader.style.opacity = 0;
+            }
+            else {
+                video.classList.remove('hidden'); video.muted = muted; video.loop = loop; video.controls = showOriginalUI;
+                if (poster) video.poster = poster;
+                if (currentEngine === 'library' && Hls.isSupported()) {
+                    document.getElementById('hls-internals')?.classList.remove('hidden');
+                    hlsInstance = new Hls(); hlsInstance.loadSource(url); hlsInstance.attachMedia(video);
+                    hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => { if (autoplay) safePlay(); });
+                } 
+                else if (currentEngine === 'plyr') {
+                    plyrInstance = new Plyr(video, { autoplay: autoplay, muted: muted, loop: { active: loop }, controls: showOriginalUI ? ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'captions', 'settings', 'pip', 'fullscreen'] : [] });
+                    document.getElementById('controls-overlay').style.display = 'none';
+                    if (Hls.isSupported()) { hlsInstance = new Hls(); hlsInstance.loadSource(url); hlsInstance.attachMedia(video); } else { video.src = url; }
+                }
+                else if (currentEngine === 'shaka') {
+                    shaka.polyfill.installAll(); shakaInstance = new shaka.Player(video);
+                    shakaInstance.load(url).then(() => { if (autoplay) safePlay(); }).catch(e => logEvent("Shaka: " + e.message, 'error'));
+                }
+                else {
+                    video.src = url; if (autoplay) safePlay();
+                }
+                detectCC();
+            }
+        }
+
+        setInterval(() => {
+            if (!video || video.classList.contains('hidden')) return;
+            const buffer = video.buffered.length > 0 ? (video.buffered.end(video.buffered.length - 1) - video.currentTime).toFixed(2) : 0;
+            safeSetText('stats-res', `${video.videoWidth}x${video.videoHeight}`);
+            safeSetText('stats-ready', READY_STATES[video.readyState] || '0');
+            safeSetText('stats-network', NETWORK_STATES[video.networkState] || '0');
+            safeSetText('stats-buffer', buffer + "s");
+            safeSetText('stats-vol', `${Math.round(video.volume * 100)}% / ${video.muted ? 'Yes' : 'No'}`);
+            if (video.getVideoPlaybackQuality) {
+                const q = video.getVideoPlaybackQuality();
+                safeSetText('stats-decoded', q.totalVideoFrames);
+                safeSetText('stats-dropped', q.droppedVideoFrames);
+            }
+            if (hlsInstance) {
+                safeSetText('stats-hls-level', hlsInstance.currentLevel === -1 ? 'Auto' : hlsInstance.currentLevel);
+                safeSetText('stats-hls-latency', (hlsInstance.latency || 0).toFixed(2) + 's');
+            }
+        }, 1000);
+
+        function detectCC() {
+            const chk = setInterval(() => { if (video && video.textTracks && video.textTracks.length > 0) { ccBtn?.classList.remove('hidden'); clearInterval(chk); } }, 2000);
+            setTimeout(() => clearInterval(chk), 15000);
+        }
+
+        function toggleCC() {
+            if (!video?.textTracks) return;
+            let current = -1;
+            for (let i = 0; i < video.textTracks.length; i++) if (video.textTracks[i].mode === 'showing') { current = i; break; }
+            if (current === -1) { video.textTracks[0].mode = 'showing'; ccBtn?.classList.add('cc-active'); }
+            else if (current === video.textTracks.length - 1) { for (let i = 0; i < video.textTracks.length; i++) video.textTracks[i].mode = 'disabled'; ccBtn?.classList.remove('cc-active'); }
+            else { video.textTracks[current].mode = 'disabled'; video.textTracks[current + 1].mode = 'showing'; }
+        }
+
+        function setEngine(engine) {
+            currentEngine = engine;
+            document.querySelectorAll('.engine-btn').forEach(btn => btn.classList.remove('active-mode'));
+            document.getElementById(`btn-${engine}`)?.classList.add('active-mode');
+            safeSetText('engine-status', engine.toUpperCase().replace('LIBRARY', 'HLS.JS').replace('_LOCAL', ' STANDALONE'));
+            loadStream();
+        }
+
+        video.addEventListener('play', () => { loader.style.opacity = 0; safeSetHTML('play-icon', '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>'); });
+        video.addEventListener('pause', () => { safeSetHTML('play-icon', '<path d="M8 5v14l11-7z"/>'); });
+        video.addEventListener('timeupdate', () => {
+            const min = Math.floor(video.currentTime / 60);
+            const sec = Math.floor(video.currentTime % 60);
+            safeSetText('timestamp', `${min.toString().padStart(2,'0')}:${sec.toString().padStart(2,'0')}`);
+        });
+
+        function togglePlay() { video.paused ? safePlay() : video.pause(); }
+        function toggleMute() { video.muted = !video.muted; }
+        function toggleFS() { if (!document.fullscreenElement) playerContainer.requestFullscreen(); else document.exitFullscreen(); }
+        volSlider.addEventListener('input', (e) => { video.volume = e.target.value; if (video.volume > 0) video.muted = false; });
+
+        playerContainer.addEventListener('mousemove', () => {
+            if (playerContainer.classList.contains('hide-ui')) return;
+            playerContainer.classList.add('controls-visible');
+            clearTimeout(window.controlTimeout);
+            if (!video.paused) window.controlTimeout = setTimeout(() => playerContainer.classList.remove('controls-visible'), 3000);
+        });
+
+        window.onload = () => { logEvent("Nexus TV Laboratory Environment Initialized."); loadStream(); };
+        function safeSetHTML(id, html) { const el = document.getElementById(id); if (el) el.innerHTML = html; }
+    </script>
+</body>
+</html>
