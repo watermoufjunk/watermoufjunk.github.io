@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StreamBox Browser Explorer</title>
+    <!-- Dependencies -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        window.firebaseUtils = { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getFirestore, doc, setDoc, getDoc };
+    </script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #020617; margin: 0; overflow-x: hidden; color: white; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #334155; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .animate-spin-custom { animation: spin 1s linear infinite; }
+        .video-wrapper { position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; background: #000; }
+        .video-wrapper iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        .synopsis-tab-active { color: white; border-bottom: 2px solid #3b82f6; }
+        .dropdown-animate { animation: dropdownFade 0.2s cubic-bezier(0, 0, 0.2, 1); }
+        @keyframes dropdownFade { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useCallback, useRef, useMemo } = React;
+
+        const PROXY_URL = 'https://corsproxy.io/?';
+        const QUALITY_PARAMS = 'quality%5B%5D=HD&quality%5B%5D=HDRip&quality%5B%5D=SD&country%5B%5D=64&country%5B%5D=3';
+        const RECENT_RELEASES_FILTER = '&year%5B%5D=2026&year%5B%5D=2025&year%5B%5D=2024&year%5B%5D=2023&year%5B%5D=2022';
+
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+        async function safeFetch(url, retries = 1) {
+            try {
+                const response = await fetch(url);
+                if (response.status === 503 && retries > 0) {
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    return safeFetch(url, retries - 1);
+                }
+                return response;
+            } catch (e) {
+                if (retries > 0) {
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    return safeFetch(url, retries - 1);
+                }
+                throw e;
+            }
+        }
+
+        const Icon = ({ name, size = 16, className = "", fill = "none", strokeWidth = 2 }) => {
+            const containerRef = useRef(null);
+            useEffect(() => {
+                if (window.lucide && window.lucide.icons && containerRef.current) {
+                    const iconDef = window.lucide.icons[name.replace(/-./g, x => x[1].toUpperCase()).charAt(0).toUpperCase() + name.replace(/-./g, x => x[1].toUpperCase()).slice(1)] || window.lucide.icons[name];
+                    containerRef.current.innerHTML = '';
+                    if (iconDef) {
+                        const svg = window.lucide.createElement(iconDef);
+                        svg.setAttribute('width', size); svg.setAttribute('height', size);
+                        if (className) svg.setAttribute('class', className);
+                        svg.setAttribute('fill', fill); svg.setAttribute('stroke-width', strokeWidth);
+                        containerRef.current.appendChild(svg);
+                    }
+                }
+            }, [name, size, className, fill, strokeWidth]);
+            return <span ref={containerRef} className="inline-flex items-center justify-center shrink-0" style={{ width: size, height: size }}></span>;
+        };
+
+        const RT_SCRAPER = {
+            DOMAIN: "https://www.rottentomatoes.com",
+            _normalize: (str) => (str || "").toLowerCase().replace(/[^a-z0-9]/g, ''),
+            _isFuzzyMatch: function(s1, s2) {
+                if (!s1 || !s2) return false;
+                if (s1 === s2) return true;
+                if (s1.includes(s2) || s2.includes(s1)) return true;
+                const getFreq = (s) => {
+                    const f = {};
+                    for (let c of s) f[c] = (f[c] || 0) + 1;
+                    return f;
+                };
+                const f1 = getFreq(s1), f2 = getFreq(s2);
+                let matches = 0;
+                for (let c in f1) if (f2[c]) matches += Math.min(f1[c], f2[c]);
+                return (matches / Math.max(s1.length, s2.length)) > 0.8;
+            },
+            fetchMovieData: async function(title, year, contentType) {
+                const cleanYear = year ? year.toString().replace(/\D/g, '') : '';
+                const searchUrl = `${this.DOMAIN}/search?search=${encodeURIComponent(title)}`;
+                try {
+                    const searchRes = await safeFetch(PROXY_URL + encodeURIComponent(searchUrl));
+                    const searchHtml = await searchRes.text();
+                    const searchDoc = new DOMParser().parseFromString(searchHtml, 'text/html');
+                    const isTv = contentType && (contentType.toLowerCase().includes('tv') || contentType.toLowerCase().includes('show'));
+                    const targetType = isTv ? 'tvSeries' : 'movie';
+                    const resultContainer = searchDoc.querySelector(`search-page-result[type="${targetType}"]`);
+                    if (!resultContainer) return { error: `No results found` };
+                    const mediaRows = resultContainer.querySelectorAll('search-page-media-row');
+                    let movieUrl = null;
+                    const normSearchTitle = this._normalize(title);
+                    for (let row of mediaRows) {
+                        const rowYear = row.getAttribute('release-year') || row.getAttribute('start-year') || "";
+                        const link = row.querySelector('a[data-qa="thumbnail-link"]') || row.querySelector('a[data-qa="info-name"]');
+                        const rowTitleText = row.querySelector('[data-qa="info-name"]')?.textContent?.trim() || "";
+                        const normRowTitle = this._normalize(rowTitleText);
+                        if (this._isFuzzyMatch(normRowTitle, normSearchTitle) && (!cleanYear || !rowYear || rowYear.includes(cleanYear) || isTv)) {
+                            const href = link.getAttribute('href');
+                            movieUrl = href.startsWith('http') ? href : this.DOMAIN + href;
+                            break;
+                        }
+                    }
+                    if (!movieUrl) return { error: "No match found" };
+                    const movieRes = await safeFetch(PROXY_URL + encodeURIComponent(movieUrl));
+                    const movieDoc = new DOMParser().parseFromString(await movieRes.text(), 'text/html');
+                    const jsonScript = movieDoc.getElementById('media-scorecard-json');
+                    const rawData = jsonScript ? JSON.parse(jsonScript.textContent) : {};
+                    const criticsConsensus = movieDoc.querySelector('#critics-consensus p, [data-qa="critics-consensus-text"]')?.textContent?.trim();
+                    const audienceConsensus = movieDoc.querySelector('#audience-consensus p, [data-qa="audience-consensus-text"]')?.textContent?.trim();
+                    return { 
+                        description: rawData.description, 
+                        criticsConsensus, 
+                        audienceConsensus, 
+                        poster: rawData.primaryImageUrl, 
+                        rt_url: movieUrl, 
+                        critics: { score: rawData.criticsScore?.scorePercent || "N/A" }, 
+                        audience: { score: rawData.audienceScore?.scorePercent || "N/A" } 
+                    };
+                } catch (error) { return { error: error.message }; }
+            }
+        };
+
+        const YEARS = [
+            { id: 'all', name: 'All Years' }, { id: '2026', name: '2026' }, { id: '2025', name: '2025' }, { id: '2024', name: '2024' },
+            { id: '2023', name: '2023' }, { id: '2022', name: '2022' }, { id: '2021', name: '2021' }, { id: '2020', name: '2020' }
+        ];
+
+        const GENRES = [
+            { id: 'all', name: 'All Genres', value: 'all' },
+            { id: 'action', name: 'Action', value: '14' }, { id: 'adult', name: 'Adult', value: '15265' }, { id: 'adventure', name: 'Adventure', value: '109' },
+            { id: 'animation', name: 'Animation', value: '404' }, { id: 'biography', name: 'Biography', value: '312' }, { id: 'comedy', name: 'Comedy', value: '1' },
+            { id: 'costume', name: 'Costume', value: '50202' }, { id: 'crime', name: 'Crime', value: '126' }, { id: 'documentary', name: 'Documentary', value: '92' },
+            { id: 'drama', name: 'Drama', value: '12' }, { id: 'family', name: 'Family', value: '78' }, { id: 'fantasy', name: 'Fantasy', value: '53' },
+            { id: 'film-noir', name: 'Film-Noir', value: '1779' }, { id: 'game-show', name: 'Game-Show', value: '966' }, { id: 'history', name: 'History', value: '239' },
+            { id: 'horror', name: 'Horror', value: '2' }, { id: 'kungfu', name: 'Kungfu', value: '67893' }, { id: 'music', name: 'Music', value: '99' },
+            { id: 'musical', name: 'Musical', value: '1809' }, { id: 'mystery', name: 'Mystery', value: '154' }, { id: 'news', name: 'News', value: '1515' },
+            { id: 'reality', name: 'Reality', value: '6774' }, { id: 'reality-tv', name: 'Reality-TV', value: '726' }, { id: 'romance', name: 'Romance', value: '44' },
+            { id: 'sci-fi', name: 'Sci-Fi', value: '162' }, { id: 'science-fiction', name: 'Science Fiction', value: '219174' }, { id: 'short', name: 'Short', value: '405' },
+            { id: 'sport', name: 'Sport', value: '79' }, { id: 'talk', name: 'Talk', value: '92400' }, { id: 'talk-show', name: 'Talk-Show', value: '7024' },
+            { id: 'thriller', name: 'Thriller', value: '13' }, { id: 'tv-movie', name: 'TV Movie', value: '18067' }, { id: 'tv-show', name: 'TV Show', value: '11185' },
+            { id: 'war', name: 'War', value: '436' }, { id: 'war-politics', name: 'War & Politics', value: '218204' }, { id: 'western', name: 'Western', value: '1443' }
+        ];
+
+        const SORTS = [{ id: 'latest', name: 'Latest' }, { id: 'trending', name: 'Trending' }, { id: 'release_date', name: 'Release' }, { id: 'imdb_rating', name: 'IMDb' }];
+        const MAIN_CATEGORIES = [{ id: 'movie', name: 'Movies' }, { id: 'tv', name: 'TV Shows' }, { id: 'all', name: 'All' }];
+
+        const MovieCard = ({ movie, bulkRatings, onOpenDetails, registerVisibility }) => {
+            const cardRef = useRef(null);
+            useEffect(() => {
+                const observer = new IntersectionObserver(([entry]) => registerVisibility(movie.link, entry.isIntersecting), { threshold: 0.1 });
+                if (cardRef.current) observer.observe(cardRef.current);
+                return () => observer.disconnect();
+            }, [movie.link, registerVisibility]);
+            const ratings = bulkRatings[movie.link] || {};
+            return (
+                <div ref={cardRef} className="group bg-slate-900/40 rounded-xl border border-slate-800/30 overflow-hidden hover:border-blue-500/40 transition-all relative shadow-xl">
+                    <button onClick={(e) => { e.preventDefault(); onOpenDetails(movie); }} className="absolute top-2 right-2 z-40 w-7 h-7 bg-white text-slate-950 rounded-full opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center border border-white/10 hover:bg-blue-400"><Icon name="info" size={12} strokeWidth={3} /></button>
+                    <div onClick={() => onOpenDetails(movie)} className="block relative overflow-hidden aspect-[2/3] bg-slate-800 cursor-pointer">
+                        <img src={movie.imageUrl} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" loading="lazy" />
+                        <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
+                            <div className="px-2 py-0.5 rounded shadow-lg flex items-center gap-1 border backdrop-blur-md text-[9px] font-black uppercase bg-slate-900/80 text-blue-400 border-blue-500/30">{movie.type}</div>
+                            {ratings.imdb && <div className="bg-amber-500 text-slate-950 px-2 py-0.5 rounded text-[9px] font-black shadow-lg uppercase border border-amber-400/30">IMDb {ratings.imdb}</div>}
+                            {ratings.rt && <div className="bg-red-600 text-white px-2 py-0.5 rounded text-[9px] font-black shadow-lg uppercase border border-red-500/30">RT {ratings.rt}</div>}
+                        </div>
+                        <div className="absolute bottom-2 right-2 flex gap-1 z-20">
+                            {movie.year && (<span className="bg-slate-900/80 text-white border border-white/10 backdrop-blur-md px-2 py-0.5 rounded text-[9px] font-black">{movie.year}</span>)}
+                        </div>
+                    </div>
+                    <div className="p-3 bg-slate-900/80"><h3 className="font-bold text-[11px] md:text-xs text-white leading-tight uppercase line-clamp-2 hover:text-blue-400 transition-colors cursor-pointer" onClick={() => onOpenDetails(movie)}>{movie.title}</h3></div>
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [user, setUser] = useState(null);
+            const [hasLoadedPersistence, setHasLoadedPersistence] = useState(false);
+            const [activeMain, setActiveMain] = useState(MAIN_CATEGORIES[0]);
+            const [activeSort, setActiveSort] = useState(SORTS[0]);
+            const [activeGenre, setActiveGenre] = useState(GENRES[0]);
+            const [blacklistGenres, setBlacklistGenres] = useState([]);
+            const [activeYears, setActiveYears] = useState(['all']);
+            const [isStackMode, setIsStackMode] = useState(false);
+            const [isYearExpanded, setIsYearExpanded] = useState(false);
+            const [isExcludeDropdownOpen, setIsExcludeDropdownOpen] = useState(false);
+            const [baseUrl, setBaseUrl] = useState('');
+            const [showUrlPrompt, setShowUrlPrompt] = useState(true);
+            const [movies, setMovies] = useState([]);
+            const [loading, setLoading] = useState(false);
+            const [loadingNextPage, setLoadingNextPage] = useState(false);
+            const [page, setPage] = useState(1);
+            const [hasMore, setHasMore] = useState(true);
+            const [selectedMovie, setSelectedMovie] = useState(null);
+            const [modalData, setModalData] = useState(null);
+            const [isModalLoading, setIsModalLoading] = useState(false);
+            const [viewMode, setViewMode] = useState('info'); 
+            const [searchQuery, setSearchQuery] = useState('');
+            const [currentEndpoint, setCurrentEndpoint] = useState('');
+            const [bulkRatings, setBulkRatings] = useState({});
+            const [isFetchingIMDb, setIsFetchingIMDb] = useState(false);
+            const [isFetchingRT, setIsFetchingRT] = useState(false);
+            const [tempUrl, setTempUrl] = useState(new URLSearchParams(window.location.search).get('api') || '');
+
+            const visibleLinksRef = useRef(new Set());
+            const pendingRequestsRef = useRef(new Set()); 
+            const moviesRef = useRef([]);
+            const bulkRatingsRef = useRef({});
+            const scrollObserver = useRef(null);
+            const preloadTriggerRef = useRef(null);
+            const dropdownRef = useRef(null);
+            const blacklistCacheRef = useRef({});
+
+            useEffect(() => { moviesRef.current = movies; bulkRatingsRef.current = bulkRatings; }, [movies, bulkRatings]);
+
+            const firebaseUtils = window.firebaseUtils;
+
+            useEffect(() => {
+                if (!firebaseConfig || !firebaseUtils) return;
+                const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } = firebaseUtils;
+                const app = initializeApp(firebaseConfig);
+                const auth = getAuth(app);
+                const initAuth = async () => { if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token); else await signInAnonymously(auth); };
+                initAuth();
+                const unsubscribe = onAuthStateChanged(auth, setUser);
+                return () => unsubscribe();
+            }, []);
+
+            useEffect(() => {
+                if (!user || !firebaseUtils) { if (!firebaseConfig) setHasLoadedPersistence(true); return; }
+                const { getFirestore, doc, getDoc } = firebaseUtils;
+                const db = getFirestore();
+                const fetchP = async () => {
+                    const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'filters');
+                    try { const snap = await getDoc(docRef); if (snap.exists()) setBlacklistGenres(snap.data().blacklistGenres.map(bg => GENRES.find(g => g.id === bg.id)).filter(Boolean)); } catch (e) {}
+                    setHasLoadedPersistence(true);
+                };
+                fetchP();
+            }, [user]);
+
+            useEffect(() => {
+                if (!user || !hasLoadedPersistence || !firebaseConfig || !firebaseUtils) return;
+                const { getFirestore, doc, setDoc } = firebaseUtils;
+                const db = getFirestore();
+                const timeoutId = setTimeout(async () => {
+                    const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'filters');
+                    try { await setDoc(docRef, { blacklistGenres }, { merge: true }); } catch (e) {}
+                }, 1000);
+                return () => clearTimeout(timeoutId);
+            }, [blacklistGenres, user, hasLoadedPersistence]);
+
+            const handleCategoryChange = (cat) => { setActiveMain(cat); setMovies([]); setPage(1); };
+            const toggleBlacklistGenre = (g) => { setBlacklistGenres(prev => prev.find(p => p.id === g.id) ? prev.filter(p => p.id !== g.id) : [...prev, g]); };
+
+            const getActiveUrl = useCallback((pageNum = 1, overrideGenre = null) => {
+                if (!baseUrl) return '';
+                const targetGenre = overrideGenre || activeGenre;
+                let url = `${baseUrl}/browser?${QUALITY_PARAMS}`;
+                if (searchQuery.trim()) url += `&keyword=${searchQuery.trim().replace(/\s+/g, '+')}`;
+                else {
+                    if (activeMain.id === 'movie') url += '&type%5B%5D=movie';
+                    if (activeMain.id === 'tv') url += '&type%5B%5D=tv';
+                    if (activeYears.length > 0 && !activeYears.includes('all')) activeYears.forEach(y => url += `&year%5B%5D=${y}`);
+                    else if (activeSort.id === 'latest' && activeMain.id === 'movie') url += RECENT_RELEASES_FILTER;
+                    let sortVal = activeSort.id === 'imdb_rating' ? 'imdb' : activeSort.id === 'latest' ? 'updated_date' : activeSort.id;
+                    url += `&sort=${sortVal}`;
+                    if (targetGenre.value !== 'all') url += `&genre%5B%5D=${targetGenre.value}`;
+                }
+                if (pageNum > 1) url += `&page=${pageNum}`;
+                return url;
+            }, [activeMain, activeSort, activeGenre, activeYears, baseUrl, searchQuery]);
+
+            const normalizeLink = (url) => url ? url.replace(/\/$/, '').toLowerCase() : '';
+
+            const findBestMatch = (imdbTitles, targetTitle, targetYear) => {
+                if (!imdbTitles || !Array.isArray(imdbTitles)) return null;
+                const mTitle = targetTitle.toLowerCase();
+                const movieYear = parseInt(targetYear);
+                const exact = imdbTitles.find(t => {
+                    const matchTitle = (t.primaryTitle || t.originalTitle || "").toLowerCase();
+                    return (matchTitle === mTitle || matchTitle.includes(mTitle) || mTitle.includes(matchTitle)) && parseInt(t.startYear) === movieYear;
+                });
+                if (exact) return exact;
+                return imdbTitles.find(t => {
+                    const matchTitle = (t.primaryTitle || t.originalTitle || "").toLowerCase();
+                    const matchYear = parseInt(t.startYear);
+                    return (matchTitle === mTitle || matchTitle.includes(mTitle) || mTitle.includes(matchTitle)) && movieYear && matchYear && Math.abs(matchYear - movieYear) <= 1;
+                });
+            };
+
+            const triggerAggressiveFetch = async () => {
+                const visible = Array.from(visibleLinksRef.current);
+                const currentMovies = moviesRef.current;
+                const currentRatings = bulkRatingsRef.current;
+                const targets = currentMovies.filter(m => visible.includes(m.link) && ((isFetchingIMDb && !currentRatings[m.link]?.imdb) || (isFetchingRT && !currentRatings[m.link]?.rt)) && !pendingRequestsRef.current.has(m.link));
+                if (targets.length === 0) return;
+                targets.forEach(async (movie) => {
+                    pendingRequestsRef.current.add(movie.link);
+                    try {
+                        if (isFetchingIMDb && !currentRatings[movie.link]?.imdb) {
+                            const cleanTitle = movie.title.replace(/\(\d{4}\)/g, '').split('Full Movie')[0].trim();
+                            const res = await safeFetch(PROXY_URL + encodeURIComponent(`https://api.imdbapi.dev/search/titles?query=${encodeURIComponent(cleanTitle)}`));
+                            const data = await res.json();
+                            const match = findBestMatch(data.titles, cleanTitle, movie.year);
+                            if (match?.rating?.aggregateRating) setBulkRatings(prev => ({ ...prev, [movie.link]: { ...prev[movie.link], imdb: match.rating.aggregateRating } }));
+                        }
+                        if (isFetchingRT && !currentRatings[movie.link]?.rt) {
+                            const rtData = await RT_SCRAPER.fetchMovieData(movie.title, movie.year, movie.type);
+                            if (rtData && !rtData.error) setBulkRatings(prev => ({ ...prev, [movie.link]: { ...prev[movie.link], rt: rtData.critics.score } }));
+                        }
+                    } catch (e) {} finally { pendingRequestsRef.current.delete(movie.link); }
+                });
+            };
+
+            const registerVisibility = useCallback((link, isVisible) => {
+                if (isVisible) visibleLinksRef.current.add(link); else visibleLinksRef.current.delete(link);
+                if (isVisible) triggerAggressiveFetch();
+            }, [isFetchingIMDb, isFetchingRT]);
+
+            useEffect(() => { triggerAggressiveFetch(); }, [isFetchingIMDb, isFetchingRT]);
+
+            const parsePage = (html) => {
+                const doc = new DOMParser().parseFromString(html, 'text/html');
+                return Array.from(doc.querySelectorAll('.movie-cards .item, .flw-item, .item')).map(el => {
+                    const titleEl = el.querySelector('.title, .film-name a, h3');
+                    if (!titleEl) return null;
+                    const path = el.querySelector('a')?.getAttribute('href');
+                    const meta = Array.from(el.querySelectorAll('.fdi-item, .metadata span')).map(i => i.textContent.trim());
+                    let year = null, type = 'Movie';
+                    meta.forEach(item => { if (/^\d{4}$/.test(item)) year = item; if (item.toLowerCase().includes('tv') || item.includes('SS')) type = 'TV'; });
+                    const link = path ? (path.startsWith('http') ? path : `${baseUrl}${path}`) : '#';
+                    let streamUrl = link;
+                    const ss = meta.find(i => i.includes('SS'))?.replace(/\D/g, ''), ep = meta.find(i => i.includes('EP'))?.replace(/\D/g, '');
+                    if (type === 'TV' && ss && ep) streamUrl += `#ep=${ss},${ep}`;
+                    return { title: titleEl.textContent.trim(), link, streamUrl, imageUrl: el.querySelector('img')?.getAttribute('data-src') || el.querySelector('img')?.getAttribute('src'), type, year };
+                }).filter(Boolean);
+            };
+
+            const fetchMovies = useCallback(async (isInitial = true, currentPageOverride = null) => {
+                if (!baseUrl) return;
+                const pageToFetch = isInitial ? 1 : (currentPageOverride || (page + 1));
+                const mainUrl = getActiveUrl(pageToFetch);
+                setCurrentEndpoint(mainUrl);
+                if (isInitial) { setLoading(true); setPage(1); setHasMore(true); } else setLoadingNextPage(true);
+                try {
+                    const mainRes = await safeFetch(PROXY_URL + encodeURIComponent(mainUrl));
+                    let extracted = parsePage(await mainRes.text());
+                    const rawCount = extracted.length;
+                    if (blacklistGenres.length > 0 && !searchQuery) {
+                        const totalBlackSet = new Set();
+                        await Promise.all(blacklistGenres.map(async (genre) => {
+                            if (!blacklistCacheRef.current[genre.id]) blacklistCacheRef.current[genre.id] = { fetchedPages: 0, links: new Set() };
+                            const cache = blacklistCacheRef.current[genre.id];
+                            const targetDepth = pageToFetch + 2; 
+                            if (cache.fetchedPages < targetDepth) {
+                                for (let p = cache.fetchedPages + 1; p <= targetDepth; p++) {
+                                    const url = getActiveUrl(p, genre);
+                                    const res = await safeFetch(PROXY_URL + encodeURIComponent(url));
+                                    const items = parsePage(await res.text());
+                                    items.forEach(m => cache.links.add(normalizeLink(m.link)));
+                                    cache.fetchedPages = p; if (items.length < 1) break; 
+                                }
+                            }
+                            cache.links.forEach(l => totalBlackSet.add(l));
+                        }));
+                        extracted = extracted.filter(m => !totalBlackSet.has(normalizeLink(m.link)));
+                    }
+                    if (isInitial) setMovies(extracted);
+                    else {
+                        setMovies(prev => {
+                            const existing = new Set(prev.map(m => normalizeLink(m.link)));
+                            return [...prev, ...extracted.filter(m => !existing.has(normalizeLink(m.link)))];
+                        });
+                        setPage(pageToFetch);
+                    }
+                    if (rawCount > 0 && extracted.length === 0 && hasMore) return fetchMovies(false, pageToFetch + 1);
+                    if (rawCount === 0) setHasMore(false);
+                } catch (err) {} finally { setLoading(false); setLoadingNextPage(false); }
+            }, [getActiveUrl, page, baseUrl, blacklistGenres, searchQuery, hasMore]);
+
+            const fetchMovieDetails = async (movie) => {
+                setSelectedMovie(movie); setIsModalLoading(true); setViewMode('info'); setModalData(null);
+                try {
+                    const sourceRes = await safeFetch(PROXY_URL + encodeURIComponent(movie.link));
+                    const docStr = await sourceRes.text();
+                    const docParsed = new DOMParser().parseFromString(docStr, "text/html");
+                    const extractedGenres = Array.from(Array.from(docParsed.querySelectorAll(".mics li")).find(li => li.textContent.includes("Genre"))?.querySelectorAll("a") || []).map(a => a.textContent.trim());
+                    const srcPosterImg = docParsed.querySelector(".poster img, .film-poster img, img[itemprop='image']");
+                    const extractedPoster = srcPosterImg ? (srcPosterImg.getAttribute('src') || srcPosterImg.getAttribute('data-src')) : movie.imageUrl;
+                    const cleanTitle = movie.title.replace(/\(\d{4}\)/g, '').split('Full Movie')[0].trim();
+                    const imdbApiUrl = `https://api.imdbapi.dev/search/titles?query=${encodeURIComponent(cleanTitle)}`;
+                    let imdbJson = null, isHit = false;
+                    try {
+                        const imdbRes = await safeFetch(PROXY_URL + encodeURIComponent(imdbApiUrl));
+                        imdbJson = await imdbRes.json();
+                        isHit = !!findBestMatch(imdbJson.titles, cleanTitle, movie.year);
+                    } catch (e) { imdbJson = { error: "Handshake failed", details: e.message }; }
+                    
+                    const baseMeta = {
+                        title: docParsed.querySelector("h1.title, h1")?.textContent.trim() || movie.title,
+                        description: docParsed.querySelector(".description, .plot, p")?.textContent.trim() || "",
+                        imdb: docParsed.querySelector(".IMDb, .imdb-rating")?.textContent.replace("IMDb", "").trim() || null,
+                        year: movie.year, type: movie.type, poster: extractedPoster, genres: extractedGenres, searchTerm: cleanTitle, isHit: isHit, imdbRaw: imdbJson 
+                    };
+                    setModalData(baseMeta); setIsModalLoading(false);
+                    
+                    // FETCH ROTTEN TOMATOES METADATA
+                    const rtResult = await RT_SCRAPER.fetchMovieData(baseMeta.title, baseMeta.year, baseMeta.type);
+                    setModalData(prev => ({ ...prev, rt: rtResult }));
+
+                    const searchIMDB = await safeFetch(PROXY_URL + encodeURIComponent('https://imdb.iamidiotareyoutoo.com/search?q=' + encodeURIComponent(baseMeta.title))).then(r => r.json());
+                    const matchOld = searchIMDB.description?.find(item => (item["#TITLE"] || "").toLowerCase().includes(baseMeta.title.toLowerCase()) && (item["#YEAR"] == baseMeta.year || !baseMeta.year));
+                    if (matchOld && matchOld["#IMDB_ID"]) setModalData(prev => ({ ...prev, trailer: `https://anym3u8player.com/ultimate-player-generator/player.php?player=videojs&url=${encodeURIComponent('https://imdb.iamidiotareyoutoo.com/media/' + matchOld["#IMDB_ID"])}&autoplay=1&loop=1&controls=hidden&theme=minimal&buffer=30&fullscreen=1&no_download=1&width=responsive&aspect=16%3A9` }));
+                } catch (e) { setIsModalLoading(false); }
+            };
+
+            const handleSaveUrl = () => { let f = tempUrl.trim(); if (f && !f.startsWith('http')) f = 'https://' + f; if (f.endsWith('/')) f = f.slice(0, -1); setBaseUrl(f); setShowUrlPrompt(false); };
+            const handleYearToggle = (yearId) => {
+                if (yearId === 'all') { setActiveYears(['all']); return; }
+                let next = isStackMode ? [...activeYears].filter(y => y !== 'all') : [];
+                if (next.includes(yearId)) { next = next.filter(y => y !== yearId); if (next.length === 0) next = ['all']; } else next.push(yearId);
+                setActiveYears(next);
+            };
+
+            useEffect(() => { const t = setTimeout(() => { if (baseUrl) fetchMovies(true); }, 500); return () => clearTimeout(t); }, [searchQuery]);
+            useEffect(() => { if (baseUrl && hasLoadedPersistence) fetchMovies(true); }, [activeMain, activeSort, activeGenre, activeYears, blacklistGenres, baseUrl, hasLoadedPersistence]);
+
+            return (
+                <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 font-sans font-black">
+                    {showUrlPrompt && (
+                        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/95 backdrop-blur-xl">
+                            <div className="bg-slate-900 border border-white/10 p-10 rounded-[2.5rem] shadow-2xl max-w-lg w-full text-center">
+                                <div className="p-4 bg-blue-600 rounded-3xl mb-4 inline-flex mx-auto text-white"><Icon name="radio" size={32} /></div>
+                                <h2 className="text-3xl font-black mb-6 uppercase italic tracking-tighter text-white">Core Engine</h2>
+                                <input type="text" value={tempUrl} onChange={(e) => setTempUrl(e.target.value)} placeholder="https://mirror-url.com" className="w-full bg-slate-800/50 border border-slate-700/50 rounded-2xl py-4 px-4 mb-6 focus:outline-none focus:ring-2 focus:ring-blue-600 text-white" />
+                                <button onClick={handleSaveUrl} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black uppercase text-xs tracking-widest py-5 rounded-2xl shadow-xl">Initialize</button>
+                            </div>
+                        </div>
+                    )}
+                    <header className="sticky top-0 z-50 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 shadow-xl">
+                        <div className="px-4 py-3 flex items-center justify-between gap-4">
+                            <nav className="flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0">
+                                {MAIN_CATEGORIES.map(group => ( <button key={group.id} onClick={() => handleCategoryChange(group)} className={`px-4 py-1.5 rounded-full text-[10px] md:text-xs font-black uppercase transition-all shrink-0 ${activeMain.id === group.id ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-200'}`}>{group.name}</button> ))}
+                            </nav>
+                            <div className="flex-1 max-w-md relative group px-2">
+                                <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-400 transition-colors pointer-events-none"><Icon name="search" size={14} /></div>
+                                <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search catalog..." className="w-full bg-slate-800/50 border border-slate-700/30 rounded-full py-2 pl-10 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-600/50 transition-all text-xs font-bold" />
+                            </div>
+                            <button onClick={() => fetchMovies(true)} className="p-2 bg-slate-800 hover:bg-slate-700 rounded-full shrink-0 transition-colors"><Icon name="refresh-cw" className={loading ? "animate-spin-custom" : ""} size={14} /></button>
+                        </div>
+                        <div className="bg-slate-900/60 border-b border-white/5 flex items-center h-10 px-4 text-[9px] uppercase relative z-50">
+                            <div className="flex-1 flex items-center gap-4 overflow-x-auto no-scrollbar">
+                                <span className="text-slate-600 tracking-widest shrink-0">Sort:</span>
+                                {SORTS.map(sort => ( <button key={sort.id} onClick={() => setActiveSort(sort)} className={`whitespace-nowrap transition-colors ${activeSort.id === sort.id ? 'text-blue-400' : 'text-slate-500'}`}>{sort.name}</button> ))}
+                            </div>
+                            <div className="flex items-center gap-2 mr-4 bg-slate-950/40 px-2 py-1 rounded-lg border border-white/5">
+                                <button onClick={() => setIsFetchingIMDb(!isFetchingIMDb)} className={`flex items-center gap-1.5 px-2 py-1 rounded-md transition-all ${isFetchingIMDb ? 'bg-amber-500 text-slate-950 shadow-lg' : 'hover:bg-amber-500/10 text-amber-500'}`}><Icon name={isFetchingIMDb ? "loader-2" : "star"} size={10} className={isFetchingIMDb ? "animate-spin" : ""} /><span>{isFetchingIMDb ? 'IMDb Active' : 'Fetch IMDb'}</span></button>
+                                <button onClick={() => setIsFetchingRT(!isFetchingRT)} className={`flex items-center gap-1.5 px-2 py-1 rounded-md transition-all ${isFetchingRT ? 'bg-red-500 text-white shadow-lg' : 'hover:bg-red-500/10 text-red-500'}`}><Icon name={isFetchingRT ? "loader-2" : "flame"} size={10} className={isFetchingRT ? "animate-spin" : ""} /><span>{isFetchingRT ? 'RT Active' : 'Fetch RT'}</span></button>
+                            </div>
+                            <div className="flex items-center gap-4 shrink-0 bg-slate-900/60 pl-4 border-l border-slate-800 h-full text-white">
+                                <button onClick={() => setIsYearExpanded(!isYearExpanded)} className={`flex items-center gap-1 transition-colors ${isYearExpanded || !activeYears.includes('all') ? 'text-amber-400' : 'text-slate-500'}`}><Icon name="calendar" size={10} /> Year {activeYears.includes('all') ? '' : `(${activeYears.length})`}</button>
+                                <div className="relative h-full flex items-center" ref={dropdownRef}>
+                                    <button onClick={() => setIsExcludeDropdownOpen(!isExcludeDropdownOpen)} className={`flex items-center gap-1 px-2 ${isExcludeDropdownOpen || blacklistGenres.length > 0 ? 'text-rose-400 font-black' : 'text-slate-500'}`}><Icon name="ban" size={10} />Exclude {blacklistGenres.length > 0 ? `(${blacklistGenres.length})` : ''} <Icon name={isExcludeDropdownOpen ? "chevron-up" : "chevron-down"} size={10} /></button>
+                                    {isExcludeDropdownOpen && (
+                                        <div className="absolute top-full right-0 mt-0 w-56 bg-slate-900 border border-slate-700/50 rounded-bl-2xl rounded-br-2xl shadow-2xl z-[100] dropdown-animate overflow-hidden">
+                                            <div className="p-2 border-b border-slate-800 flex items-center justify-between bg-slate-950/50 text-[8px] tracking-widest"><span className="pl-2 font-black text-slate-500">Genre Blacklist</span><button onClick={() => setBlacklistGenres([])} className="text-rose-500 hover:text-rose-400 font-black">Clear All</button></div>
+                                            <div className="max-h-72 overflow-y-auto custom-scrollbar p-1">
+                                                {GENRES.filter(g => g.value !== 'all').map(genre => {
+                                                    const isSelected = blacklistGenres.find(bg => bg.id === genre.id);
+                                                    return (<button key={genre.id} onClick={() => toggleBlacklistGenre(genre)} className={`w-full text-left px-3 py-2.5 rounded-xl text-[10px] font-bold flex items-center justify-between transition-colors ${isSelected ? 'bg-rose-500/10 text-rose-400' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>{genre.name} {isSelected && <Icon name="check" size={10} strokeWidth={4} />}</button>);
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="bg-slate-900/40 border-b border-white/5 py-1.5 px-4 flex gap-4 items-center overflow-x-auto no-scrollbar scroll-smooth text-[9px] uppercase">
+                            <span className="text-slate-600 tracking-widest shrink-0">Include:</span>
+                            {GENRES.map(genre => ( <button key={genre.id} onClick={() => setActiveGenre(genre)} className={`whitespace-nowrap transition-colors ${activeGenre.id === genre.id ? 'text-emerald-400 font-black underline underline-offset-4 decoration-2' : 'text-slate-500 hover:text-slate-300'}`}>{genre.name}</button> ))}
+                        </div>
+                        {isYearExpanded && (
+                            <div className="bg-slate-900/20 border-b border-white/5 py-1.5 px-4 flex gap-4 items-center overflow-x-auto no-scrollbar scroll-smooth text-[9px] uppercase animate-in slide-in-from-top-2 duration-200">
+                                <span className="text-slate-600 tracking-widest shrink-0">Years:</span>
+                                {YEARS.map(year => ( <button key={year.id} onClick={() => handleYearToggle(year.id)} className={`px-2 py-1 rounded transition-all ${activeYears.includes(year.id) ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20 shadow-lg' : 'text-slate-500'}`}>{year.name}</button> ))}
+                                <div className="ml-auto pl-3 border-l border-slate-800 shrink-0"><button onClick={() => setIsStackMode(!isStackMode)} className={`p-1 rounded border transition-all ${isStackMode ? 'bg-blue-600 border-blue-400 text-white shadow-lg' : 'bg-slate-800 border-slate-700 text-slate-600'}`}><Icon name="plus" size={10} className={isStackMode ? "rotate-45" : ""} /></button></div>
+                            </div>
+                        )}
+                    </header>
+                    <div className="bg-blue-900/20 border-b border-blue-500/30 px-4 py-1.5 flex items-center gap-2 overflow-hidden text-white">
+                        <Icon name="link-2" size={12} className="text-blue-400 shrink-0" /><span className="text-[9px] font-mono text-blue-300/70 uppercase font-black shrink-0">Endpoint:</span><span className="text-[9px] font-mono text-blue-200 truncate flex-1 font-black">{currentEndpoint}</span>
+                        <a href={currentEndpoint} target="_blank" rel="noopener noreferrer" className="ml-auto text-blue-400 hover:text-blue-200 transition-colors p-1 bg-blue-500/10 rounded flex items-center gap-1 group/btn" title="Open Source"><Icon name="external-link" size={12} /></a>
+                    </div>
+                    <main className="flex-1 p-3 md:p-6 max-w-[1600px] mx-auto w-full relative z-10 text-white font-black">
+                        {loading && page === 1 ? (
+                            <div className="flex flex-col items-center justify-center py-32"><Icon name="loader-2" size={40} className="animate-spin-custom text-blue-500" /></div>
+                        ) : (
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-3 md:gap-4 text-white">
+                                {movies.length === 0 ? (
+                                    <div className="col-span-full py-32 text-center text-slate-600"><Icon name="alert-triangle" size={32} className="mx-auto mb-2 opacity-50" /><p className="text-[10px] font-black uppercase tracking-widest text-slate-500">No results found for current filters</p></div>
+                                ) : movies.map((movie, idx) => ( <MovieCard key={`${movie.link}-${idx}`} movie={movie} bulkRatings={bulkRatings} onOpenDetails={fetchMovieDetails} registerVisibility={registerVisibility} /> ))}
+                            </div>
+                        )}
+                        <div ref={preloadTriggerRef} className="w-full py-16 flex flex-col items-center justify-center text-white">
+                            {hasMore ? ( <div className="flex flex-col items-center gap-2 text-white"><Icon name="loader-2" size={24} className="animate-spin-custom text-blue-500" /><span className="text-[10px] uppercase tracking-widest text-slate-500">Auto-Loading Next Batch...</span></div> ) : ( <span className="text-[10px] uppercase tracking-widest text-slate-700 italic border-t border-slate-900 pt-8 w-full text-center text-white font-black uppercase tracking-widest">End of available results</span> )}
+                        </div>
+                    </main>
+                    {selectedMovie && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 md:p-6 overflow-hidden">
+                            <div className="absolute inset-0 bg-slate-950/98 backdrop-blur-xl" onClick={() => setSelectedMovie(null)}/>
+                            <div className="relative w-full max-w-4xl animate-in zoom-in-95 duration-300">
+                                <div className="bg-slate-900 border border-white/5 w-full rounded-[2.5rem] overflow-hidden shadow-2xl flex flex-col md:flex-row max-h-[85vh] relative">
+                                    <button onClick={() => setSelectedMovie(null)} className="absolute top-5 right-5 z-[120] w-14 h-7 bg-slate-950/60 hover:bg-red-500/40 text-white rounded-full transition-all border border-white/10 backdrop-blur-md shadow-xl flex items-center justify-center group"><Icon name="x" size={14} className="group-hover:scale-110 transition-transform" /></button>
+                                    <div className="w-full md:w-80 shrink-0 h-64 md:h-auto bg-slate-800 relative text-white">
+                                        <img src={modalData?.poster || selectedMovie.imageUrl} className="w-full h-full object-cover" />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent md:hidden" />
+                                    </div>
+                                    <div className="p-6 md:p-12 flex flex-col flex-1 bg-slate-900 overflow-y-auto custom-scrollbar text-white">
+                                        <h2 className="text-2xl md:text-4xl font-black leading-tight uppercase italic mb-2 tracking-tight pr-12">{selectedMovie.title}</h2>
+                                        
+                                        <div className="flex items-center gap-3 mb-6 bg-slate-950/50 p-2.5 rounded-xl border border-white/5 font-black uppercase">
+                                            <div className="flex flex-col"><span className="text-[8px] text-slate-500 tracking-[0.2em] mb-1">Search Pulse</span><span className="text-[10px] font-mono text-blue-400 italic font-black">"{modalData?.searchTerm || "Calculating..."}"</span></div>
+                                            <div className="ml-auto flex flex-col items-end"><span className="text-[8px] text-slate-500 tracking-[0.2em] mb-1 font-black">IMDb Sync</span>{modalData?.isHit ? ( <span className="text-[8px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/30 font-black">Match Found</span> ) : ( <span className="text-[8px] bg-red-500/20 text-red-400 px-2 py-0.5 rounded border border-red-500/30 font-black">Match Failed</span> )}</div>
+                                        </div>
+
+                                        <div className="flex flex-wrap items-start gap-4 mb-4">
+                                            {modalData?.imdb && <span className="bg-amber-500 text-slate-950 px-3.5 py-1.5 rounded-lg text-xs md:text-sm font-black flex items-center gap-1 shadow-xl">IMDb {modalData.imdb}</span>}
+                                            {modalData?.rt && !modalData.rt.error && ( 
+                                                <><span className="bg-red-600/20 text-red-400 border border-red-500/20 px-3.5 py-1.5 rounded-lg text-xs md:text-sm font-black uppercase tracking-widest">RT {modalData.rt.critics.score}</span><span className="bg-orange-600/20 text-orange-400 border border-orange-500/20 px-3.5 py-1.5 rounded-lg text-xs md:text-sm font-black uppercase tracking-widest">POP {modalData.rt.audience.score}</span></> 
+                                            )}
+                                            <span className="bg-slate-800 text-slate-400 px-3 py-1.5 rounded-lg text-xs font-black border border-slate-700 ml-auto h-fit text-white uppercase tracking-widest">{selectedMovie.year || selectedMovie.type}</span>
+                                        </div>
+                                        {modalData?.genres && modalData.genres.length > 0 && ( <div className="flex flex-wrap gap-1.5 mb-8"> {modalData.genres.map(genre => ( <span key={genre} className="bg-slate-800/40 text-slate-400 px-2 py-0.5 rounded border border-white/5 text-[10px] font-black uppercase tracking-widest text-white">{genre}</span> ))} </div> )}
+                                        
+                                        <div className="flex-1 text-white">
+                                            <div className="mb-4 flex border-b border-white/5 gap-6">
+                                                <button onClick={() => setViewMode('info')} className={`pb-2 text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'info' ? 'synopsis-tab-active' : 'text-slate-500'}`}>Information</button>
+                                                {modalData?.trailer && <button onClick={() => setViewMode('trailer')} className={`pb-2 text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'trailer' ? 'synopsis-tab-active' : 'text-slate-500'}`}>Watch Trailer</button>}
+                                                <button onClick={() => setViewMode('json')} className={`pb-2 text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'json' ? 'synopsis-tab-active' : 'text-slate-500'}`}>Source JSON</button>
+                                            </div>
+                                            
+                                            {viewMode === 'json' ? ( 
+                                                <div className="mb-10 animate-in fade-in slide-in-from-bottom-4 duration-700"><div className="bg-slate-950 p-6 rounded-2xl border border-white/5 shadow-inner overflow-auto max-h-96 custom-scrollbar"><pre className="text-[10px] font-mono text-emerald-400 whitespace-pre-wrap font-black">{modalData?.imdbRaw ? JSON.stringify(modalData.imdbRaw, null, 2) : "// Loading payload..."}</pre></div></div> 
+                                            ) : viewMode === 'trailer' && modalData?.trailer ? ( 
+                                                <div className="mb-10 animate-in fade-in slide-in-from-bottom-4 duration-700"><div className="video-wrapper rounded-2xl overflow-hidden border border-white/5 shadow-2xl"><iframe src={modalData.trailer} frameBorder="0" allow="autoplay" webkitAllowFullScreen="true" mozallowfullscreen="true" allowFullScreen></iframe></div></div> 
+                                            ) : ( 
+                                                <div className="mb-10 text-white">
+                                                    {isModalLoading ? (<div className="flex items-center gap-2 text-blue-500 py-4 italic text-white"><Icon name="loader-2" className="animate-spin-custom text-blue-500" /><span className="text-xs font-black uppercase tracking-widest text-white">Metadata Handshake...</span></div>) : (
+                                                        <>
+                                                            {/* ROTTEN TOMATOES CONSENSUS BLOCK */}
+                                                            {(modalData?.rt?.criticsConsensus || modalData?.rt?.audienceConsensus) && (
+                                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10 text-white font-black">
+                                                                    {modalData.rt.criticsConsensus && (<div className="p-4 bg-red-600/5 border border-red-500/10 rounded-xl"><h4 className="text-[9px] font-black uppercase tracking-widest text-red-500 mb-2">Critic Consensus</h4><p className="text-slate-300 text-xs italic leading-relaxed text-white font-black">{modalData.rt.criticsConsensus}</p></div>)}
+                                                                    {modalData.rt.audienceConsensus && (<div className="p-4 bg-orange-600/5 border border-orange-500/10 rounded-xl"><h4 className="text-[9px] font-black uppercase tracking-widest text-orange-500 mb-2">Audience Summary</h4><p className="text-slate-300 text-xs italic leading-relaxed text-white font-black">{modalData.rt.audienceConsensus}</p></div>)}
+                                                                </div>
+                                                            )}
+                                                            <p className="text-slate-400 leading-relaxed text-xs md:text-sm font-medium uppercase text-white font-black">{modalData?.description || "Source plot empty."}</p>
+                                                        </>
+                                                    )}
+                                                </div> 
+                                            )}
+                                        </div>
+                                        <div className="mt-8 flex flex-col sm:flex-row gap-3">
+                                            <a href={selectedMovie.link} target="_blank" className="flex-1 bg-blue-600 text-white py-4 rounded-2xl font-black text-xs uppercase flex items-center justify-center hover:bg-blue-500 shadow-xl transition-all tracking-widest">Initialize Stream</a>
+                                            {modalData?.trailer && (<button onClick={() => setViewMode(viewMode === 'trailer' ? 'info' : 'trailer')} className="flex-1 bg-red-600 text-white py-4 rounded-2xl font-black text-xs uppercase flex items-center justify-center gap-2 hover:bg-red-500 shadow-xl transition-all tracking-widest"><Icon name={viewMode === 'trailer' ? 'info' : 'play'} size={14} fill="currentColor" /> {viewMode === 'trailer' ? 'Show Details' : 'Watch Trailer'}</button>)}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
