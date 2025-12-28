@@ -3,466 +3,346 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Archive Multi-Player Lab & Debugger</title>
+    <title>Archive Explorer & Rebuilder</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <!-- Player Stylesheets -->
     <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/dplayer/dist/DPlayer.min.css">
-
-    <!-- Player Scripts -->
     <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/dplayer/dist/DPlayer.min.js"></script>
 
     <style>
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: #1e293b; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
-        .active-segment { background-color: #eff6ff; border-left: 4px solid #2563eb; }
-        .engine-active { background-color: #2563eb !important; color: white !important; }
         
-        /* Player Frame & Custom Controls */
         .player-frame { min-height: 450px; background: #000; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
-        .vjs-default-skin { width: 100% !important; height: 100% !important; }
-        #dplayer { width: 100%; height: 100%; }
-
-        video::-webkit-media-controls { display:none !important; }
         
-        .custom-control-overlay {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: linear-gradient(transparent, rgba(0,0,0,0.8));
-            padding: 20px 15px 10px 15px;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            z-index: 100;
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-        .player-frame:hover .custom-control-overlay { opacity: 1; }
+        /* Hide native seek bar to force use of our global one */
+        .vjs-progress-control { display: none !important; }
+        .video-js { width: 100%; height: 100%; }
 
-        .control-btn {
-            background: transparent;
-            color: white;
-            border: none;
-            cursor: pointer;
-            padding: 5px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: transform 0.1s;
+        .line-clamp-2 {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;  
+            overflow: hidden;
         }
-        .control-btn:hover { transform: scale(1.1); color: #ef4444; }
-        .control-btn svg { width: 24px; height: 24px; fill: currentColor; }
 
-        /* Global Progress Bar Styling */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+
+        .active-segment-item {
+            background: rgba(37, 99, 235, 0.1);
+            border-left: 4px solid #3b82f6;
+        }
+
         .global-progress-container {
-            position: absolute;
-            bottom: 55px;
-            left: 15px;
-            right: 15px;
-            height: 6px;
-            background: rgba(255,255,255,0.15);
-            cursor: pointer;
-            border-radius: 3px;
-            z-index: 110;
-            transition: height 0.2s;
-        }
-        .global-progress-container:hover { height: 10px; }
-        .global-progress-bar {
-            height: 100%;
-            background: #ef4444;
-            width: 0%;
-            border-radius: 3px;
-            position: relative;
-            transition: width 0.1s ease-out;
-        }
-        .global-progress-bar.loading {
-            opacity: 0.6;
-            background: #f87171;
-            box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
-        }
-        .global-time-tooltip {
-            position: absolute;
-            top: -35px;
-            right: 0;
-            background: rgba(0,0,0,0.9);
-            color: white;
-            font-size: 11px;
-            padding: 4px 8px;
+            height: 8px;
+            background: #334155;
             border-radius: 4px;
-            white-space: nowrap;
-            pointer-events: none;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+            position: relative;
+            cursor: pointer;
+            overflow: hidden;
         }
-        .debug-line { font-family: monospace; font-size: 10px; border-bottom: 1px solid #e2e8f0; padding: 2px 0; }
+        .global-progress-fill {
+            height: 100%;
+            background: #3b82f6;
+            width: 0%;
+            transition: width 0.1s linear;
+        }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-900 font-sans min-h-screen">
+<body class="bg-slate-900 text-slate-100 min-h-screen font-sans overflow-x-hidden">
 
-    <div class="max-w-7xl mx-auto p-4 md:p-8">
-        <header class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div class="flex items-center gap-3">
-                <div class="bg-red-600 p-2 rounded-lg text-white shadow-lg">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"></path><path d="M12 9v4"></path><path d="M12 16v.01"></path></svg>
-                </div>
-                <div>
-                    <h1 class="text-2xl font-bold text-slate-800 tracking-tight">Archive Multi-Player & Global Progress</h1>
-                    <p class="text-slate-500 text-sm">Synchronized Timeline with Predictive Seeking</p>
-                </div>
+    <!-- Debug Modal -->
+    <div id="debugModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4" style="z-index: 2000;">
+        <div class="bg-slate-800 border border-slate-700 w-full max-w-5xl h-[85vh] rounded-2xl flex flex-col overflow-hidden shadow-2xl">
+            <div class="p-4 border-b border-slate-700 flex justify-between items-center">
+                <h3 class="font-bold text-blue-400 text-sm">Metadata Debugger</h3>
+                <button onclick="toggleDebug()" class="text-slate-400 hover:text-white text-2xl">&times;</button>
             </div>
-            <div id="meta-display" class="text-right hidden md:block border-l-2 pl-4 border-blue-200">
-                <div id="meta-title" class="text-sm font-bold text-slate-700 truncate max-w-xs">Waiting...</div>
-                <div id="total-duration-ui" class="text-xs text-slate-400 font-mono italic">--:--:--</div>
-            </div>
-        </header>
-
-        <!-- Input Section -->
-        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-8">
-            <div class="flex flex-col md:flex-row gap-3">
-                <input id="url-input" type="text" value="https://archive.org/details/CNNW_20220417_140000_Fareed_Zakaria_GPS" class="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm" />
-                <button id="load-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold px-8 py-3 rounded-lg shadow-md transition-all">Reload & Sync</button>
-            </div>
-            
-            <div id="ui-controls" class="mt-6 space-y-4 hidden">
-                <div class="flex flex-wrap items-center gap-4">
-                    <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Engine:</span>
-                    <div class="inline-flex flex-wrap bg-slate-100 p-1 rounded-lg border border-slate-200 gap-1">
-                        <button onclick="setPlayer('native')" id="btn-native" class="px-3 py-1.5 text-xs font-bold rounded-md engine-active">Native</button>
-                        <button onclick="setPlayer('videojs')" id="btn-videojs" class="px-3 py-1.5 text-xs font-bold rounded-md text-slate-500">Video.js</button>
-                        <button onclick="setPlayer('dplayer')" id="btn-dplayer" class="px-3 py-1.5 text-xs font-bold rounded-md text-slate-500">DPlayer</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div id="main-content" class="hidden grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            <div class="lg:col-span-8 space-y-4">
-                <div class="bg-black rounded-2xl shadow-2xl overflow-hidden aspect-video relative player-frame group">
-                    <div id="player-mount" class="w-full h-full"></div>
-                    
-                    <!-- Global Progress Bar Overlay -->
-                    <div id="global-progress-wrapper" class="global-progress-container opacity-0 group-hover:opacity-100 transition-opacity">
-                        <div id="global-progress-bar" class="global-progress-bar">
-                            <span id="global-time-tooltip" class="global-time-tooltip">00:00</span>
-                        </div>
-                    </div>
-
-                    <!-- Custom Control Overlay -->
-                    <div class="custom-control-overlay">
-                        <button id="play-pause-btn" class="control-btn" title="Play/Pause">
-                            <svg id="play-icon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                            <svg id="pause-icon" viewBox="0 0 24 24" class="hidden"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
-                        </button>
-                        
-                        <button id="mute-btn" class="control-btn" title="Mute/Unmute">
-                            <svg id="unmute-icon" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
-                            <svg id="mute-icon" viewBox="0 0 24 24" class="hidden"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>
-                        </button>
-
-                        <div id="global-pos-text-overlay" class="text-white text-xs font-mono ml-auto">00:00 / 00:00</div>
-                    </div>
-                </div>
-                
-                <div class="bg-slate-900 text-slate-300 p-4 rounded-xl shadow-inner overflow-hidden flex flex-col gap-2">
-                    <div class="flex justify-between items-center border-b border-slate-700 pb-2">
-                        <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Global Status</span>
-                        <span id="global-pos-text" class="text-[9px] font-mono text-red-400">00:00 / 00:00</span>
-                    </div>
-                    <div id="debug-log" class="max-h-24 overflow-y-auto custom-scrollbar"></div>
-                </div>
-            </div>
-
-            <div class="lg:col-span-4 space-y-4">
-                <div class="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col h-[500px]">
-                    <div class="p-3 bg-slate-50 border-b text-xs font-bold text-slate-500 uppercase">Segments</div>
-                    <div id="segment-list" class="overflow-y-auto flex-1 divide-y divide-slate-100 custom-scrollbar"></div>
-                </div>
-            </div>
+            <pre id="debugOutput" class="flex-1 overflow-auto p-4 font-mono text-[11px] text-slate-300 custom-scrollbar whitespace-pre-wrap"></pre>
         </div>
     </div>
 
+    <!-- Header -->
+    <header class="sticky top-0 z-[100] bg-slate-900/95 backdrop-blur-md border-b border-slate-800 p-3 shadow-xl">
+        <div class="max-w-[1600px] mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-3 cursor-pointer shrink-0" onclick="showView('search')">
+                <div class="bg-blue-600 p-1.5 rounded-lg text-white">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2" ry="2"></rect><path d="M7 2v20M17 2v20M2 12h20"></path></svg>
+                </div>
+                <h1 class="text-lg font-bold tracking-tight">Archive<span class="text-blue-500">Explorer</span></h1>
+            </div>
+
+            <div class="flex flex-1 max-w-5xl w-full items-center gap-3">
+                <form id="searchForm" class="relative flex-1">
+                    <input type="text" id="searchInput" placeholder="Search Archive..." class="w-full bg-slate-800 border border-slate-700 rounded-full py-2 px-10 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                </form>
+                
+                <div class="flex items-center gap-2">
+                    <select id="sortOption" onchange="currentPage=1; searchArchive(currentQuery)" class="bg-slate-800 border border-slate-700 rounded-full px-3 py-1.5 text-[10px] font-bold focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer">
+                        <option value="-publicdate" selected>Newest Archived</option>
+                        <option value="publicdate">Oldest Archived</option>
+                        <option value="-date">Newest Aired</option>
+                        <option value="date">Oldest Aired</option>
+                    </select>
+                    
+                    <button id="comcastFilterBtn" onclick="toggleComcastFilter()" class="bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-full text-[10px] font-bold transition-all">Comcast 2025</button>
+                    
+                    <button onclick="toggleDebug()" class="p-1.5 bg-slate-800 border border-slate-700 rounded-full text-slate-400">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Search View -->
+    <main id="search-view" class="max-w-[1800px] mx-auto p-4 animate-fade-in">
+        <div id="results-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-3"></div>
+        <div id="pagination" class="mt-10 flex justify-center hidden">
+            <button onclick="loadMoreResults()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-6 py-2 rounded-lg text-xs font-bold">Load More</button>
+        </div>
+    </main>
+
+    <!-- Player View -->
+    <main id="player-view" class="max-w-[1400px] mx-auto p-4 hidden animate-fade-in">
+        <div class="flex flex-col lg:grid lg:grid-cols-12 gap-6">
+            <div class="lg:col-span-8 space-y-4">
+                <!-- Video Core -->
+                <div id="player-container" class="bg-black rounded-xl shadow-2xl overflow-hidden aspect-video relative player-frame">
+                    <video id="main-video" class="video-js vjs-default-skin w-full h-full" controls crossorigin="anonymous" playsinline></video>
+                </div>
+
+                <!-- ULTIMATE SEEK BAR (Global Timeline) -->
+                <div class="bg-slate-800 border border-slate-700 rounded-xl p-4 shadow-lg">
+                    <div class="flex justify-between items-center mb-2">
+                        <span id="global-time-current" class="text-[11px] font-mono text-blue-400 font-bold">00:00:00</span>
+                        <div class="text-[10px] uppercase font-bold text-slate-500 tracking-widest">Global Archive Timeline</div>
+                        <span id="global-time-total" class="text-[11px] font-mono text-slate-400">00:00:00</span>
+                    </div>
+                    
+                    <div id="global-seek-bar" class="global-progress-container">
+                        <div id="global-progress-fill" class="global-progress-fill"></div>
+                    </div>
+                    
+                    <div class="mt-4 flex flex-col md:flex-row justify-between items-start gap-4">
+                        <div class="flex-1 min-w-0">
+                            <h2 id="current-title" class="text-base font-bold text-white truncate">Untitled Video</h2>
+                            <div class="flex items-center gap-2 mt-1">
+                                <span class="text-[9px] text-slate-500 uppercase font-bold">Identifier:</span>
+                                <span id="display-identifier" class="text-[9px] text-blue-400 font-mono">Loading...</span>
+                            </div>
+                        </div>
+                        <button onclick="showView('search')" class="bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded text-[10px] font-bold">Close Player</button>
+                    </div>
+                </div>
+
+                <div id="source-log" class="space-y-1 max-h-24 overflow-y-auto custom-scrollbar text-[9px] bg-slate-950 p-3 rounded-lg font-mono text-slate-500 border border-slate-800"></div>
+            </div>
+
+            <!-- Segment Queue Column -->
+            <div class="lg:col-span-4 flex flex-col h-full space-y-4">
+                <div class="bg-slate-800 border border-slate-700 rounded-xl flex flex-col h-[600px] overflow-hidden shadow-xl">
+                    <div class="p-3 border-b border-slate-700 bg-slate-800/50 flex justify-between items-center">
+                        <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Segment Queue</h3>
+                        <span id="segment-count" class="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full font-bold">0/0</span>
+                    </div>
+                    <div id="segment-list" class="flex-1 overflow-y-auto custom-scrollbar divide-y divide-slate-700/50"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
     <script>
         const ARCHIVE_BASE = 'https://archive.org/download';
-        const SEG_DUR = 365;
-
-        let segments = [];
-        let currentIndex = 0;
-        let identifier = '';
-        let totalShowSeconds = 0;
-        let vttUrl = null;
-        let activeEngine = 'native';
-        let isSeekingLocally = false;
-        let pendingSeek = 0; // Guard for seeking while player is resetting
-
-        let vjsPlayer = null;
-        let dpInstance = null;
-
-        const loadBtn = document.getElementById('load-btn');
-        const urlInput = document.getElementById('url-input');
-        const mount = document.getElementById('player-mount');
-        const globalBar = document.getElementById('global-progress-bar');
-        const globalTooltip = document.getElementById('global-time-tooltip');
-        const globalPosText = document.getElementById('global-pos-text');
-        const globalPosOverlay = document.getElementById('global-pos-text-overlay');
-        const globalWrapper = document.getElementById('global-progress-wrapper');
+        const SEGMENT_DURATION = 360; 
+        let player = null;
+        let currentPage = 1;
+        let currentQuery = "";
+        let isComcastOnly = false;
         
-        const playPauseBtn = document.getElementById('play-pause-btn');
-        const playIcon = document.getElementById('play-icon');
-        const pauseIcon = document.getElementById('pause-icon');
-        const muteBtn = document.getElementById('mute-btn');
-        const muteIcon = document.getElementById('mute-icon');
-        const unmuteIcon = document.getElementById('unmute-icon');
+        let activeSegments = [];
+        let currentSegmentIdx = 0;
+        let activeIdentifier = '';
+        let activeFileName = '';
+        let totalArchiveDuration = 0;
 
-        function log(msg, color='text-slate-400') {
-            const d = document.createElement('div');
-            d.className = `debug-line ${color}`;
-            d.innerHTML = `[${new Date().toLocaleTimeString()}] ${msg}`;
-            const lb = document.getElementById('debug-log');
-            if (lb) lb.prepend(d);
+        window.onload = () => {
+            player = videojs('main-video', { 
+                fluid: true, 
+                playbackRates: [0.5, 1, 1.5, 2],
+                controlBar: {
+                    progressControl: false 
+                }
+            });
+
+            player.on('ended', () => {
+                if (currentSegmentIdx < activeSegments.length - 1) {
+                    playSegment(currentSegmentIdx + 1);
+                }
+            });
+
+            player.on('timeupdate', updateGlobalProgress);
+            document.getElementById('global-seek-bar').addEventListener('click', handleGlobalSeek);
+            
+            // Initial load
+            searchArchive("");
+        };
+
+        function formatTime(seconds) {
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = Math.floor(seconds % 60);
+            return [h, m, s].map(v => v < 10 ? "0" + v : v).join(":");
         }
 
-        function formatTime(s) {
-            if (isNaN(s) || s < 0) return '00:00';
-            const h = Math.floor(s / 3600);
-            const m = Math.floor((s % 3600) / 60);
-            const sec = Math.floor(s % 60);
-            return `${h > 0 ? h + ':' : ''}${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+        function updateGlobalProgress() {
+            if (!totalArchiveDuration) return;
+            const currentGlobalTime = activeSegments[currentSegmentIdx].start + player.currentTime();
+            const percent = (currentGlobalTime / totalArchiveDuration) * 100;
+            document.getElementById('global-progress-fill').style.width = `${percent}%`;
+            document.getElementById('global-time-current').textContent = formatTime(currentGlobalTime);
         }
 
-        async function init() {
-            const val = urlInput.value.trim();
-            identifier = val.split('/details/')[1]?.split(/[?#]/)[0] || val;
-            if (!identifier) return;
+        function handleGlobalSeek(e) {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const width = rect.width;
+            const targetTime = (x / width) * totalArchiveDuration;
+            const segmentIdx = Math.floor(targetTime / SEGMENT_DURATION);
+            const internalOffset = targetTime % SEGMENT_DURATION;
+
+            if (currentSegmentIdx === segmentIdx) {
+                player.currentTime(internalOffset);
+            } else {
+                playSegment(segmentIdx, internalOffset);
+            }
+        }
+
+        async function prepareVideo(identifier, title) {
+            showView('player');
+            document.getElementById('current-title').textContent = title;
+            document.getElementById('display-identifier').textContent = identifier;
+            document.getElementById('source-log').innerHTML = '';
+            activeIdentifier = identifier;
 
             try {
-                const r = await fetch(`https://archive.org/metadata/${identifier}`);
-                const data = await r.json();
-                
-                document.getElementById('meta-title').textContent = data.metadata.title;
-                totalShowSeconds = parseInt(data.metadata.duration || 3600);
-                document.getElementById('total-duration-ui').textContent = formatTime(totalShowSeconds);
+                const response = await fetch(`https://archive.org/metadata/${identifier}`);
+                const meta = await response.json();
+                const videoFile = (meta.files || []).find(f => f.name.toLowerCase().endsWith('.mp4') && !f.name.includes('ia.mp4')) || (meta.files || []).find(f => f.name.toLowerCase().endsWith('.mp4'));
 
-                const videoFile = (data.files || []).find(f => f.name.endsWith('.mp4') && f.format.includes('264'));
-                const sidecarVtt = (data.files || []).find(f => f.name.endsWith('.vtt'));
-                vttUrl = sidecarVtt ? `${ARCHIVE_BASE}/${identifier}/${sidecarVtt.name}` : null;
+                if (!videoFile) throw new Error("No video found.");
 
-                segments = [];
-                for (let s = 0; s < totalShowSeconds; s += SEG_DUR) {
-                    segments.push({
-                        url: `${ARCHIVE_BASE}/${identifier}/${videoFile.name}?start=${s}&end=${Math.min(s + SEG_DUR, totalShowSeconds)}`,
-                        startOffset: s,
-                        title: `Part ${segments.length + 1}`
-                    });
+                activeFileName = videoFile.name;
+                totalArchiveDuration = parseInt(meta.metadata.duration || videoFile.length || 3600);
+                document.getElementById('global-time-total').textContent = formatTime(totalArchiveDuration);
+
+                activeSegments = [];
+                for (let start = 0; start < totalArchiveDuration; start += SEGMENT_DURATION) {
+                    const end = Math.min(start + SEGMENT_DURATION, totalArchiveDuration);
+                    activeSegments.push({ start, end });
                 }
 
-                document.getElementById('main-content').classList.remove('hidden');
-                document.getElementById('ui-controls').classList.remove('hidden');
-                renderList();
-                setPlayer('native'); 
-                log(`Show Ready: ${formatTime(totalShowSeconds)}`, 'text-emerald-400');
-            } catch (e) { log(`Error: ${e.message}`, 'text-red-500'); }
+                renderSegmentUI();
+                playSegment(0);
+            } catch (err) {
+                logToPlayer(`Error: ${err.message}`, "text-red-500");
+            }
         }
 
-        function renderList() {
+        function playSegment(idx, offset = 0) {
+            if (idx >= activeSegments.length) return;
+            currentSegmentIdx = idx;
+            const seg = activeSegments[idx];
+            const url = `${ARCHIVE_BASE}/${activeIdentifier}/${encodeURIComponent(activeFileName)}?start=${seg.start}&end=${seg.end}`;
+            
+            document.querySelectorAll('[id^="seg-item-"]').forEach(el => el.classList.remove('active-segment-item'));
+            document.getElementById(`seg-item-${idx}`)?.classList.add('active-segment-item');
+            document.getElementById('segment-count').textContent = `${idx + 1}/${activeSegments.length}`;
+
+            player.src({ src: url, type: 'video/mp4' });
+            if (offset > 0) {
+                player.one('loadedmetadata', () => { player.currentTime(offset); });
+            }
+            player.play();
+        }
+
+        function renderSegmentUI() {
             const list = document.getElementById('segment-list');
             list.innerHTML = '';
-            segments.forEach((s, i) => {
-                const d = document.createElement('div');
-                d.className = `p-4 cursor-pointer border-l-4 transition-all ${currentIndex === i ? 'active-segment border-blue-600' : 'border-transparent hover:bg-slate-50'}`;
-                d.innerHTML = `<div class="text-xs font-bold">${s.title}</div><div class="text-[10px] text-slate-400">${formatTime(s.startOffset)}</div>`;
-                d.onclick = () => { 
-                    currentIndex = i; 
-                    pendingSeek = 0;
-                    updatePlayerSource(); 
-                    renderList(); 
-                };
-                list.appendChild(d);
+            activeSegments.forEach((seg, idx) => {
+                const item = document.createElement('div');
+                item.id = `seg-item-${idx}`;
+                item.className = 'p-3 cursor-pointer hover:bg-slate-700/50 flex flex-col gap-1 transition-all';
+                item.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <span class="text-[10px] font-bold text-slate-300">Chunk ${idx + 1}</span>
+                        <span class="text-[9px] font-mono text-slate-500">${formatTime(seg.start)}</span>
+                    </div>
+                `;
+                item.onclick = () => playSegment(idx);
+                list.appendChild(item);
             });
         }
 
-        function renderProgress(globalSeconds, forceUIUpdate = false) {
-            if (isSeekingLocally && !forceUIUpdate) return;
-            
-            const percent = Math.min((globalSeconds / totalShowSeconds) * 100, 100);
-            globalBar.style.width = `${percent}%`;
-            globalTooltip.textContent = formatTime(globalSeconds);
-            const timeStr = `${formatTime(globalSeconds)} / ${formatTime(totalShowSeconds)}`;
-            globalPosText.textContent = timeStr;
-            globalPosOverlay.textContent = timeStr;
+        function logToPlayer(msg, colorClass = "text-slate-500") {
+            const log = document.getElementById('source-log');
+            const d = document.createElement('div');
+            d.className = colorClass;
+            d.textContent = `[LOG] ${msg}`;
+            log.prepend(d);
         }
 
-        function updateGlobalProgressFromSegment(currentTimeInSegment) {
-            const globalSeconds = (currentIndex * SEG_DUR) + (currentTimeInSegment || 0);
-            renderProgress(globalSeconds);
-
-            let isPaused = true;
-            if (activeEngine === 'native') isPaused = document.getElementById('active-video')?.paused;
-            else if (activeEngine === 'videojs') isPaused = vjsPlayer?.paused();
-            else if (activeEngine === 'dplayer') isPaused = dpInstance?.video.paused;
-
-            playIcon.classList.toggle('hidden', !isPaused);
-            pauseIcon.classList.toggle('hidden', isPaused);
+        function showView(view) {
+            document.getElementById('search-view').classList.toggle('hidden', view !== 'search');
+            document.getElementById('player-view').classList.toggle('hidden', view !== 'player');
+            if (view === 'search' && player) player.pause();
         }
 
-        globalWrapper.onclick = (e) => {
-            if (totalShowSeconds <= 0) return;
-            
-            const rect = globalWrapper.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const percent = x / rect.width;
-            const targetSeconds = totalShowSeconds * percent;
-            
-            isSeekingLocally = true;
-            globalBar.classList.add('loading');
-            renderProgress(targetSeconds, true);
-            
-            const nextIndex = Math.floor(targetSeconds / SEG_DUR);
-            const internalSeek = targetSeconds % SEG_DUR;
-            
-            if (nextIndex === currentIndex) {
-                performInternalSeek(internalSeek);
-                isSeekingLocally = false;
-                globalBar.classList.remove('loading');
-            } else {
-                currentIndex = nextIndex;
-                pendingSeek = internalSeek;
-                updatePlayerSource(internalSeek);
-                renderList();
-            }
+        document.getElementById('searchForm').onsubmit = (e) => {
+            e.preventDefault();
+            currentPage = 1;
+            currentQuery = document.getElementById('searchInput').value;
+            searchArchive(currentQuery);
         };
 
-        function performInternalSeek(time) {
+        async function searchArchive(query) {
+            showView('search');
+            const sortVal = document.getElementById('sortOption').value;
+            const activeFilter = isComcastOnly ? 'source:(Comcast) AND date:[2025-01-01 TO 2025-12-31]' : '(collection:TV-*)';
+            let fullQuery = query && query.trim() !== "" ? `(${query}) AND ${activeFilter}` : activeFilter;
+            
+            // Search URL with priority sort
+            const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(fullQuery)}&fl[]=identifier&fl[]=title&fl[]=date&fl[]=publicdate&sort[]=${sortVal}&output=json&rows=50&page=${currentPage}`;
+            
             try {
-                if (activeEngine === 'native') document.getElementById('active-video').currentTime = time;
-                else if (activeEngine === 'videojs' && vjsPlayer) vjsPlayer.currentTime(time);
-                else if (activeEngine === 'dplayer' && dpInstance) dpInstance.seek(time);
-            } catch(e) { log(`Seek error: ${e.message}`, 'text-red-400'); }
+                const response = await fetch(url);
+                const data = await response.json();
+                document.getElementById('debugOutput').textContent = JSON.stringify(data, null, 2);
+                if (currentPage === 1) document.getElementById('results-grid').innerHTML = '';
+                renderResults(data.response.docs);
+                document.getElementById('pagination').classList.remove('hidden');
+            } catch (e) {}
         }
 
-        async function safePlay(target) {
-            try {
-                if (!target) return;
-                const promise = target.play();
-                if (promise !== undefined) {
-                    await promise;
-                }
-            } catch (err) {
-                if (err.name !== 'AbortError') {
-                    log(`Play error: ${err.name}`, 'text-red-400');
-                }
-            }
+        function renderResults(items) {
+            const grid = document.getElementById('results-grid');
+            items.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'result-card relative bg-slate-800 rounded-lg overflow-hidden border border-slate-700 cursor-pointer aspect-video';
+                card.innerHTML = `<img src="https://archive.org/services/img/${item.identifier}" class="w-full h-full object-cover opacity-60"><div class="absolute inset-0 p-2 flex flex-col justify-end bg-gradient-to-t from-black/80"><h4 class="text-[10px] font-bold text-white line-clamp-1">${item.title || item.identifier}</h4><div class="text-[8px] text-blue-400 font-mono">Archived: ${(item.publicdate || "").split('T')[0]}</div></div>`;
+                card.onclick = () => prepareVideo(item.identifier, item.title);
+                grid.appendChild(card);
+            });
         }
-
-        playPauseBtn.onclick = () => {
-            if (activeEngine === 'native') {
-                const v = document.getElementById('active-video');
-                v.paused ? safePlay(v) : v.pause();
-            } else if (activeEngine === 'videojs' && vjsPlayer) {
-                vjsPlayer.paused() ? safePlay(vjsPlayer) : vjsPlayer.pause();
-            } else if (activeEngine === 'dplayer' && dpInstance) {
-                dpInstance.toggle();
-            }
-        };
-
-        muteBtn.onclick = () => {
-            let isMuted = false;
-            if (activeEngine === 'native') {
-                const v = document.getElementById('active-video');
-                v.muted = !v.muted;
-                isMuted = v.muted;
-            } else if (activeEngine === 'videojs' && vjsPlayer) {
-                vjsPlayer.muted(!vjsPlayer.muted());
-                isMuted = vjsPlayer.muted();
-            } else if (activeEngine === 'dplayer' && dpInstance) {
-                dpInstance.video.muted = !dpInstance.video.muted;
-                isMuted = dpInstance.video.muted;
-            }
-            unmuteIcon.classList.toggle('hidden', isMuted);
-            muteIcon.classList.toggle('hidden', !isMuted);
-        };
-
-        function setPlayer(type) {
-            if (vjsPlayer) { vjsPlayer.dispose(); vjsPlayer = null; }
-            if (dpInstance) { dpInstance.destroy(); dpInstance = null; }
-            mount.innerHTML = ''; 
-            activeEngine = type;
-            pendingSeek = 0;
-            
-            document.querySelectorAll('[id^="btn-"]').forEach(b => b.classList.remove('engine-active'));
-            document.getElementById(`btn-${type}`).classList.add('engine-active');
-
-            if (type === 'native') {
-                mount.innerHTML = `<video id="active-video" class="w-full h-full" crossorigin="anonymous"></video>`;
-            } else if (type === 'videojs') {
-                mount.innerHTML = `<video id="active-video" class="video-js vjs-default-skin" crossorigin="anonymous"></video>`;
-            } else if (type === 'dplayer') {
-                mount.innerHTML = `<div id="dplayer"></div>`;
-            }
-            updatePlayerSource();
-        }
-
-        function updatePlayerSource(seekTo = 0) {
-            if (!segments[currentIndex]) return;
-            const src = segments[currentIndex].url;
-            pendingSeek = seekTo;
-            
-            if (activeEngine === 'native') {
-                const v = document.getElementById('active-video');
-                if (!v) return;
-                v.src = src;
-                if (vttUrl) {
-                    const track = document.createElement('track');
-                    track.kind = 'captions'; track.label = 'English'; track.srclang = 'en'; track.src = vttUrl; track.default = true;
-                    v.appendChild(track);
-                }
-                v.ontimeupdate = () => updateGlobalProgressFromSegment(v.currentTime);
-                v.onloadedmetadata = () => { 
-                    if(pendingSeek > 0) v.currentTime = pendingSeek; 
-                    pendingSeek = 0;
-                    isSeekingLocally = false;
-                    globalBar.classList.remove('loading');
-                };
-                safePlay(v);
-            } 
-            else if (activeEngine === 'videojs') {
-                vjsPlayer = videojs('active-video', { fluid: true, controls: false, html5: { nativeTextTracks: true } });
-                vjsPlayer.src({ src, type: 'video/mp4' });
-                if (vttUrl) vjsPlayer.addRemoteTextTrack({ src: vttUrl, kind: 'captions', label: 'English', default: true }, false);
-                vjsPlayer.on('timeupdate', () => updateGlobalProgressFromSegment(vjsPlayer.currentTime()));
-                vjsPlayer.ready(() => { 
-                    if(pendingSeek > 0) vjsPlayer.currentTime(pendingSeek); 
-                    pendingSeek = 0;
-                    safePlay(vjsPlayer);
-                    isSeekingLocally = false;
-                    globalBar.classList.remove('loading');
-                });
-            }
-            else if (activeEngine === 'dplayer') {
-                dpInstance = new DPlayer({
-                    container: document.getElementById('dplayer'),
-                    screenshot: false,
-                    controls: false,
-                    video: { url: src, type: 'normal' },
-                    subtitle: vttUrl ? { url: vttUrl, type: 'webvtt' } : null
-                });
-                dpInstance.on('timeupdate', () => {
-                    if (dpInstance?.video) updateGlobalProgressFromSegment(dpInstance.video.currentTime);
-                });
-                dpInstance.on('canplay', () => {
-                    if(pendingSeek > 0) dpInstance.seek(pendingSeek);
-                    pendingSeek = 0;
-                    isSeekingLocally = false;
-                    globalBar.classList.remove('loading');
-                });
-                dpInstance.play();
-            }
-        }
-
-        loadBtn.onclick = init;
+        function toggleDebug() { document.getElementById('debugModal').classList.toggle('hidden'); }
+        function loadMoreResults() { currentPage++; searchArchive(currentQuery); }
+        function toggleComcastFilter() { isComcastOnly = !isComcastOnly; searchArchive(currentQuery); }
     </script>
 </body>
 </html>
