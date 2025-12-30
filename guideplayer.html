@@ -108,7 +108,7 @@
                             <div class="flex flex-wrap items-center justify-end gap-1.5">
                                 <select id="playerEngineSelect" onchange="window.changeEngine(this.value)" class="nav-item w-16 bg-slate-800 text-[9px] uppercase font-bold text-slate-400 border border-slate-700/50 rounded px-1 py-0.5 focus:outline-none focus:border-slate-500 truncate appearance-none text-center hover:bg-slate-700 cursor-pointer h-6">
                                     <optgroup label="Local"><option value="NATIVE" selected="">Native</option><option value="HLS.JS">HLS.js</option><option value="VIDEOJS">VideoJS</option><option value="CLAPPR">Clappr</option><option value="ARTPLAYER">Art</option><option value="SHAKA">Shaka</option><option value="DPLAYER">DPlayer</option></optgroup>
-                                    <optgroup label="Hosted"><option value="STAND_ALONE">Proxy</option><option value="ANY_CLAPPR">Any:Clp</option><option value="ANY_VIDEOJS">Any:Vjs</option><option value="ANY_JWPLAYER">Any:Jw</option><option value="ANY_FLOWPLAYER">Any:Flw</option><option value="ANY_MEDIAELEMENT">Any:Mel</option><option value="ANY_HLSJS">Any:Hls</option><option value="DEBUG">Debug</option></optgroup>
+                                    <optgroup label="Hosted"><option value="STAND_ALONE">Any Player</option><option value="ANY_CLAPPR">Any:Clp</option><option value="ANY_VIDEOJS">Any:Vjs</option><option value="ANY_JWPLAYER">Any:Jw</option><option value="ANY_FLOWPLAYER">Any:Flw</option><option value="ANY_MEDIAELEMENT">Any:Mel</option><option value="ANY_HLSJS">Any:Hls</option><option value="DEBUG">Debug</option></optgroup>
                                 </select>
                                 <select id="sourceSelect" onchange="window.handleSourceChange(this.value)" class="nav-item w-14 bg-slate-800 text-[9px] uppercase font-bold text-slate-400 border border-slate-700/50 rounded px-1 py-0.5 focus:outline-none focus:border-slate-500 truncate appearance-none text-center hover:bg-slate-700 cursor-pointer h-6 hidden">
                                 </select>
@@ -178,7 +178,6 @@
     <script>
 
 
-
         window.onerror = (msg) => { console.error(msg); return true; };
 
         (async () => {
@@ -203,6 +202,7 @@
                     S2: 'NATIVE'
                 },
                 SOURCES: { S1: 'S1', S1A: 'S1a', S2: 'S2', S2A: 'S2a' },
+                ANY_PLAYER_URL: 'https://anym3u8player.com/ultimate-player-generator/player.php',
                 // Lazy-load resource mapping
                 RESOURCES: {
                     'HLS.JS': ['https://cdn.jsdelivr.net/npm/hls.js@latest'],
@@ -263,7 +263,6 @@
             const s2Format = urlParams.get('s2_format') || API_FALLBACKS.s2_format;
             const metaUrl = urlParams.get('metadata_url') || API_FALLBACKS.metadata_url;
             const scheduleUrl = urlParams.get('schedule_url') || API_FALLBACKS.schedule_url;
-            const proxyUrl = urlParams.get('proxy_url') || API_FALLBACKS.proxy_url;
 
             let loadStartTime = 0, currentActiveSid = null, recoveryAttempts = 0; 
 
@@ -344,10 +343,12 @@
                     let frameUrl = "";
                     if (variant === 'DEBUG') { frameUrl = `https://galeksandrp.github.io/hls.js/demo/?src=${encodedUrl}&enableStreaming=true&autoRecoverError=true`; }
                     else if (variant === 'STAND_ALONE') { 
-                        frameUrl = `${proxyUrl}?url=${encodedUrl}&player=clappr&autoplay=1&loop=1&controls=hidden&width=responsive`; 
+                        // Any Player Mode: Uses clappr by default
+                        frameUrl = `${CONFIG.ANY_PLAYER_URL}?url=${encodedUrl}&player=clappr&autoplay=1&loop=1&controls=hidden&width=responsive`; 
                     }
                     else { 
-                        frameUrl = `${proxyUrl}?url=${encodedUrl}&player=${engine}&autoplay=1&loop=1&controls=hidden&theme=flat&logo=1&poster=${encodedLogo}&width=responsive`; 
+                        // Any:Mode: Uses specific engine
+                        frameUrl = `${CONFIG.ANY_PLAYER_URL}?url=${encodedUrl}&player=${engine}&autoplay=1&loop=1&controls=hidden&theme=flat&logo=1&poster=${encodedLogo}&width=responsive`; 
                     }
                     const handleFrameLoad = () => { if(s('vLoader')) s('vLoader').style.display='none'; setStatus('playing'); if (loadStartTime > 0) { s('loadTimeDisplay').innerText = `Loaded in ${((Date.now() - loadStartTime) / 1000).toFixed(2)}s`; loadStartTime = 0; } };
                     w.innerHTML = loaderHTML + `<iframe id="extPlayerFrame" src="${frameUrl}" width="100%" height="100%" frameborder="0" allow="autoplay; fullscreen"></iframe>`;
@@ -479,7 +480,7 @@
                 if(!currentStreamUrl) return; const u=encodeURIComponent(currentStreamUrl); 
                 if(isHostedEngine(currentEngine)) { 
                     const eng = currentEngine.startsWith('ANY_') ? currentEngine.split('_')[1].toLowerCase() : 'clappr'; 
-                    window.open(`${proxyUrl}?url=${u}&player=${eng}&autoplay=1&muted=${manualMute?1:0}&width=responsive`,'_blank'); 
+                    window.open(`${CONFIG.ANY_PLAYER_URL}?url=${u}&player=${eng}&autoplay=1&muted=${manualMute?1:0}&width=responsive`,'_blank'); 
                 } 
                 else window.open(currentStreamUrl,'_blank'); 
             };
