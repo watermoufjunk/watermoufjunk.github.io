@@ -1,469 +1,506 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Archive Explorer</title>
+    <title>Live TV Guide</title>
+    
+    <!-- Dependencies -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
-    <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest" crossorigin="anonymous"></script>
+    <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet">
+    <script src="https://vjs.zencdn.net/8.10.0/video.min.js" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css">
+    <script src="https://cdn.plyr.io/3.7.8/plyr.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/clappr@latest/dist/clappr.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/artplayer/dist/artplayer.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.7.11/shaka-player.ui.min.js" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.7.11/controls.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/dplayer/dist/DPlayer.min.js" crossorigin="anonymous"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        slate: { 850: '#1e293b', 900: '#0f172a', 950: '#020617' },
+                        brand: { 500: '#ef4444', 600: '#dc2626' }
+                    },
+                    fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] }
+                }
+            }
+        }
+    </script>
 
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@500;700&display=swap');
-        
-        body { font-family: 'Inter', sans-serif; background-color: #0b0f1a; color: #f8fafc; overflow-x: hidden; }
-        .mono { font-family: 'JetBrains Mono', monospace; }
+        .video-js, .plyr, #clapprContainer, #artContainer, #dplayerContainer, #shakaContainer, .shaka-video-container { width: 100%; height: 100%; border-radius: 0.5rem; overflow: hidden; }
+        .hide-scroll::-webkit-scrollbar { display: none; }
+        .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+        @keyframes pulse-ring { 0% { transform: scale(0.8); opacity: 0.5; } 100% { transform: scale(1.2); opacity: 0; } }
+        .live-dot { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); animation: pulse-ring 2s infinite; }
+        #videoWrapper:fullscreen { width: 100% !important; height: 100% !important; border-radius: 0; }
+        #videoWrapper:fullscreen video { width: 100%; height: 100%; }
+        .nav-item:focus { outline: 1.5px solid #ef4444; outline-offset: 2px; z-index: 10; }
+        #statsOverlay { pointer-events: none; text-shadow: 1px 1px 2px black; }
 
-        .custom-scrollbar::-webkit-scrollbar { height: 4px; width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
-        
-        .player-aspect { aspect-ratio: 16 / 9; background: #000; }
-
-        /* High-Contrast Title Overlay */
-        .card-title-container {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-        }
-
-        .title-main {
-            font-size: 0.85rem;
-            font-weight: 900;
-            line-height: 1;
-            text-transform: uppercase;
-            letter-spacing: -0.03em;
-            color: #fff;
-        }
-
-        .title-sub {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.65rem;
-            font-weight: 500;
-            color: #60a5fa;
-            letter-spacing: 0.05em;
-        }
-
-        .status-badge {
-            position: absolute; top: 8px; right: 8px;
-            font-size: 7px; font-weight: 900; padding: 2px 6px;
-            border-radius: 4px; text-transform: uppercase;
-            z-index: 20;
-            letter-spacing: 0.05em;
-        }
-
-        .status-pending { background: #1e293b; color: #94a3b8; border: 1px solid #334155; }
-        .status-checking { background: #2563eb; color: #fff; border: 1px solid #60a5fa; animation: pulse 1.5s infinite; }
-        .status-ready { background: #064e3b; color: #34d399; border: 1px solid #065f46; }
-        .status-stub { background: #450a0a; color: #f87171; border: 1px solid #7f1d1d; }
-        
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
-
-        body:not(.show-stubs-active) .stub-card { display: none; }
-        .stub-card { opacity: 0.4; filter: grayscale(1); }
-        
-        .global-seekbar-container {
-            height: 10px;
-            background: #1e293b;
-            border-radius: 5px;
-            position: relative;
-            cursor: pointer;
-            overflow: hidden;
-            border: 1px solid #334155;
-        }
-        .global-seekbar-fill {
-            height: 100%;
-            background: #2563eb;
-            width: 0%;
-        }
-
-        .endpoint-bar {
-            background: #020617;
-            border-bottom: 1px solid #1e293b;
-            padding: 4px 24px;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 9px;
-            color: #475569;
-            display: flex;
-            align-items: center;
-            gap: 12px;
+        @media (max-width: 640px) {
+            #playerContainer { position: fixed !important; top: 2.75rem; right: 0.25rem; width: 200px !important; max-height: 360px; z-index: 50; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.7); border: 1px solid rgba(255, 255, 255, 0.1); }
+            .epg-text-box { max-width: calc(100% - 160px); }
         }
     </style>
 </head>
-<body class="min-h-screen show-stubs-active">
+<body class="bg-slate-900 text-slate-200 h-screen flex flex-col overflow-hidden font-sans">
 
-    <header class="sticky top-0 z-50 bg-slate-900/95 border-b border-slate-800/60 shadow-xl backdrop-blur-md">
-        <div class="max-w-[1800px] mx-auto">
-            <div class="flex items-center gap-4 p-3 px-6">
-                <div class="flex items-center gap-2 shrink-0 cursor-pointer" onclick="location.reload()">
-                    <div class="bg-blue-600 p-1.5 rounded-lg text-white">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                    </div>
-                    <h1 class="hidden md:block text-sm font-black tracking-tighter uppercase">STUB<span class="text-blue-500">HUNTER</span></h1>
-                </div>
-
-                <div class="relative flex-1 max-w-xl">
-                    <input type="text" id="searchInput" placeholder="Search archives..." 
-                        onkeydown="if(event.key==='Enter') resetAndSearch()"
-                        class="w-full bg-slate-800/50 border border-slate-700/50 rounded-full py-2 pl-10 pr-4 focus:ring-1 focus:ring-blue-500 outline-none text-xs font-medium transition-all">
-                </div>
-
-                <div class="relative group">
-                    <button id="network-btn" onclick="toggleDropdown()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-full py-2 px-3 flex items-center gap-1.5 transition-all">
-                        <span class="text-[9px] font-black uppercase tracking-tight text-slate-300">Channels</span>
-                        <span id="network-count" class="bg-blue-600 text-[8px] px-1.5 py-0.5 rounded-md text-white font-bold">All</span>
-                        <svg class="w-3 h-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                    </button>
-                    <div id="network-dropdown" class="absolute right-0 mt-2 w-56 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl hidden z-[60] overflow-hidden">
-                        <div class="px-2 py-2 border-b border-slate-800 flex items-center justify-around bg-slate-950/50">
-                            <button onclick="setAllStations(true)" class="text-[9px] font-black uppercase text-blue-500">Select All</button>
-                            <button onclick="setAllStations(false)" class="text-[9px] font-black uppercase text-slate-500">Clear</button>
-                        </div>
-                        <div id="network-options-container" class="p-1 space-y-0.5 max-h-[400px] overflow-y-auto custom-scrollbar"></div>
-                    </div>
-                </div>
-
-                <div class="flex items-center gap-3">
-                    <button id="verify-btn" onclick="startVerification()" class="hidden bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-full text-[9px] font-black uppercase tracking-tighter transition-all">
-                        Verify Status
-                    </button>
-                    <div class="h-4 w-[1px] bg-slate-700"></div>
-                    <label class="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" id="stubToggle" checked onchange="toggleStubVisibility()" class="w-3.5 h-3.5 accent-blue-500">
-                        <span class="text-[9px] font-black uppercase text-slate-400">Show Stubs</span>
-                    </label>
-                    <button onclick="resetAndSearch()" class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all">Scan</button>
-                </div>
+    <!-- Compact Navbar -->
+    <nav class="sticky top-0 z-40 w-full bg-slate-900/95 backdrop-blur border-b border-slate-800 shadow-lg h-10">
+        <div class="w-full px-2 h-full flex items-center gap-3">
+            <div id="filterMenu" class="flex-1 flex items-center gap-2 overflow-x-auto hide-scroll py-1">
+                <div class="text-[10px] text-slate-500 italic px-2">Loading...</div>
             </div>
-        </div>
-        <div class="endpoint-bar">
-            <span class="text-blue-500 font-black shrink-0 uppercase">Endpoint:</span>
-            <span id="endpoint-display" class="truncate opacity-60 italic text-[9px]">Idle</span>
-        </div>
-    </header>
-
-    <main id="search-view" class="max-w-[1800px] mx-auto p-4 md:p-6">
-        <div id="results-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10 gap-3"></div>
-        <div id="loader" class="py-24 text-center hidden">
-            <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-500/20 border-t-blue-500"></div>
-        </div>
-        <div id="pagination" class="mt-8 flex justify-center pb-12 hidden">
-            <button onclick="loadMore()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-colors">Load More Results</button>
-        </div>
-    </main>
-
-    <main id="player-view" class="fixed inset-0 z-[100] bg-slate-950/98 backdrop-blur-xl p-4 md:p-8 overflow-y-auto hidden">
-        <div class="max-w-6xl mx-auto space-y-6">
-            <div class="flex justify-between items-center">
-                <button onclick="showView('search')" class="flex items-center gap-2 text-slate-400 hover:text-white transition-colors">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M15 19l-7-7 7-7"></path></svg>
-                    <span class="text-[10px] font-black uppercase tracking-widest">Back</span>
+            <div class="flex-shrink-0 flex items-center gap-2 border-l border-slate-800 pl-2">
+                <button id="searchToggle" onclick="window.toggleSearch()" class="nav-item p-1 text-slate-400 hover:text-white transition-colors rounded">
+                    <i class="fa-solid fa-magnifying-glass text-xs"></i>
                 </button>
-                <a id="archive-link" href="#" target="_blank" class="text-[10px] font-black uppercase text-slate-500 hover:text-blue-400 transition-colors">Archive.org Original</a>
             </div>
+        </div>
+        <div id="searchContainer" class="hidden bg-slate-800 border-b border-slate-700 p-2 absolute top-10 w-full z-50">
+             <div class="max-w-7xl mx-auto">
+                <input type="text" id="searchInput" placeholder="Search channels..." class="nav-item w-full bg-slate-900 text-white px-3 py-1.5 text-sm rounded border border-slate-700 focus:outline-none focus:border-brand-500" oninput="window.onSearch(this.value)">
+             </div>
+        </div>
+    </nav>
 
-            <div class="grid lg:grid-cols-12 gap-8">
-                <div class="lg:col-span-8 space-y-4">
-                    <div id="media-container" class="rounded-2xl overflow-hidden player-aspect relative bg-black shadow-2xl border border-slate-800">
-                        <video id="main-video" class="video-js vjs-big-play-centered" playsinline controls></video>
-                    </div>
-                    <div class="bg-slate-900/40 p-4 rounded-2xl border border-slate-800/50">
-                        <div id="global-time-display" class="text-[10px] font-bold text-blue-400 mono mb-2 tracking-tight">00:00:00 / 00:00:00</div>
-                        <div id="global-seekbar" class="global-seekbar-container" onclick="handleGlobalSeek(event)">
-                            <div id="global-seekbar-fill" class="global-seekbar-fill transition-all duration-300"></div>
+    <!-- Main Content -->
+    <main class="flex-grow w-full px-1 md:px-4 py-2 flex flex-row items-start gap-1 md:gap-2 overflow-hidden">
+        <div class="flex-1 min-w-0 flex flex-col gap-3 w-full h-full order-1 overflow-y-auto hide-scroll pb-16">
+            <div id="list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-2">
+                 <div class="flex items-center justify-center p-12 text-slate-600 col-span-full">
+                     <i class="fa-solid fa-circle-notch fa-spin text-2xl"></i>
+                     <span class="ml-3">Loading Guide...</span>
+                 </div>
+            </div>
+        </div>
+
+        <div id="playerContainer" class="hidden w-[14rem] sm:w-[20rem] lg:w-[22rem] xl:w-[26rem] flex-shrink-0 sticky top-12 animate-fade-in mb-2 transition-all duration-300 max-h-[400px] overflow-y-auto hide-scroll order-2">
+            <div class="bg-black/40 backdrop-blur rounded-xl overflow-hidden border border-slate-800/50 shadow-2xl">
+                <div class="relative w-full aspect-video bg-black group shrink-0">
+                    <div id="videoWrapper" class="w-full h-full relative">
+                        <div id="vLoader" class="absolute inset-0 flex items-center justify-center bg-black z-50 text-white font-bold tracking-widest pointer-events-none">
+                            <div class="flex flex-col items-center gap-2">
+                                <i class="fa-solid fa-circle-notch fa-spin text-2xl text-brand-500"></i>
+                                <span class="text-[10px] opacity-70">LOADING...</span>
+                            </div>
                         </div>
                     </div>
-                </div>
-                <div class="lg:col-span-4 bg-slate-900/50 rounded-2xl border border-slate-800 flex flex-col overflow-hidden max-h-[600px]">
-                    <div class="p-4 border-b border-slate-800 bg-slate-900/50">
-                        <h2 id="p-title" class="text-xs font-black text-white leading-tight uppercase tracking-tight">Loading Metadata...</h2>
+                    <div id="statsOverlay" class="hidden absolute top-2 left-2 z-50 bg-black/60 p-2 rounded text-[10px] font-mono text-emerald-400 border border-emerald-500/30">
+                        <div id="statsContent"></div>
                     </div>
-                    <div id="seg-list" class="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1"></div>
+                    <button id="unmutePrompt" onclick="window.unmutePlayer()" class="nav-item hidden absolute bottom-3 right-3 z-50 px-3 py-1.5 bg-black/60 hover:bg-brand-600 text-white text-[10px] font-bold rounded-full backdrop-blur border border-white/10 shadow-lg transition-all animate-bounce flex items-center gap-1.5">
+                        <i class="fa-solid fa-volume-high"></i> <span>UNMUTE</span>
+                    </button>
+                </div>
+
+                <div class="px-3 py-2 bg-slate-900/95 border-t border-slate-800/50">
+                    <div class="flex items-start gap-3 mb-2">
+                        <div id="playingLogo" class="w-10 h-7 bg-slate-900 rounded flex items-center justify-center overflow-hidden border border-slate-800 shrink-0 hidden p-1"></div>
+                        <div class="min-w-0 flex-1">
+                             <div class="flex items-center gap-2">
+                                 <h2 id="playingTitle" class="text-sm font-bold text-white leading-tight">Select Channel</h2>
+                                 <span id="lastEvent" class="font-mono text-[9px] text-slate-400 uppercase border border-slate-700/50 px-1 rounded bg-slate-800/50 shrink-0">IDLE</span>
+                             </div>
+                        </div>
+                    </div>
+
+                    <div class="block">
+                        <div class="float-right ml-3 mb-1.5 flex flex-col items-end gap-1.5 shrink-0">
+                            <div class="flex flex-wrap items-center justify-end gap-1.5">
+                                <select id="playerEngineSelect" onchange="window.changeEngine(this.value)" class="nav-item w-16 bg-slate-800 text-[9px] uppercase font-bold text-slate-400 border border-slate-700/50 rounded px-1 py-0.5 focus:outline-none focus:border-slate-500 truncate appearance-none text-center hover:bg-slate-700 cursor-pointer h-6">
+                                    <optgroup label="Local"><option value="NATIVE" selected="">Native</option><option value="HLS.JS">HLS.js</option><option value="VIDEOJS">VideoJS</option><option value="CLAPPR">Clappr</option><option value="ARTPLAYER">Art</option><option value="SHAKA">Shaka</option><option value="DPLAYER">DPlayer</option></optgroup>
+                                    <optgroup label="Hosted"><option value="STAND_ALONE">Proxy</option><option value="ANY_CLAPPR">Any:Clp</option><option value="ANY_VIDEOJS">Any:Vjs</option><option value="ANY_JWPLAYER">Any:Jw</option><option value="ANY_FLOWPLAYER">Any:Flw</option><option value="ANY_MEDIAELEMENT">Any:Mel</option><option value="ANY_HLSJS">Any:Hls</option><option value="DEBUG">Debug</option></optgroup>
+                                </select>
+                                <select id="sourceSelect" onchange="window.handleSourceChange(this.value)" class="nav-item w-14 bg-slate-800 text-[9px] uppercase font-bold text-slate-400 border border-slate-700/50 rounded px-1 py-0.5 focus:outline-none focus:border-slate-500 truncate appearance-none text-center hover:bg-slate-700 cursor-pointer h-6 hidden">
+                                </select>
+                                <div class="flex items-center bg-slate-800 rounded p-0.5 border border-slate-700/50 h-6">
+                                    <div id="mainControls" class="flex items-center">
+                                        <button onclick="window.toggleCC()" class="cc-toggle-btn nav-item px-1.5 h-full hover:bg-slate-700 rounded text-slate-300 hover:text-white opacity-50 cursor-not-allowed flex items-center justify-center" title="Captions"><i class="fa-regular fa-closed-captioning text-[9px]"></i></button>
+                                        <button onclick="window.togglePlay()" class="play-toggle-btn nav-item px-1.5 h-full hover:bg-slate-700 rounded text-slate-300 hover:text-white flex items-center justify-center" title="Play/Pause"><i class="fa-solid fa-play text-[9px]"></i></button>
+                                        <button onclick="window.toggleMute()" class="mute-toggle-btn nav-item px-1.5 h-full hover:bg-slate-700 rounded text-slate-300 hover:text-white flex items-center justify-center" title="Mute"><i class="fa-solid fa-volume-xmark text-[9px]"></i></button>
+                                    </div>
+                                    <button id="fsBtn" onclick="window.toggleFullscreen()" class="nav-item px-1.5 h-full hover:bg-slate-700 rounded text-slate-300 hover:text-white flex items-center justify-center border-l border-slate-700/50 ml-0.5" title="Fullscreen"><i class="fa-solid fa-expand text-[9px]"></i></button>
+                                </div>
+                                <div class="flex items-center gap-1 h-6">
+                                    <button id="logToggle" onclick="window.toggleStats()" class="nav-item w-6 h-full bg-slate-800 border border-slate-700/50 rounded hover:bg-slate-700 text-slate-300 flex items-center justify-center" title="System Logs & Stats"><i class="fa-solid fa-terminal text-[9px]"></i></button>
+                                    <button onclick="window.reloadCurrent()" class="nav-item w-6 h-full bg-slate-800 border border-slate-700/50 rounded hover:bg-slate-700 text-slate-300 flex items-center justify-center" title="Reload"><i class="fa-solid fa-rotate-right text-[9px]"></i></button>
+                                    <button onclick="window.closePlayer()" class="nav-item w-6 h-full bg-red-900/20 border border-red-900/30 text-red-400 rounded hover:bg-red-900/40 flex items-center justify-center" title="Close"><i class="fa-solid fa-xmark text-[9px]"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                        <p id="pd-desc" class="text-[10px] text-slate-500 leading-relaxed"></p>
+                        <div id="loadTimeDisplay" class="text-[9px] font-mono text-slate-600 mt-1 italic"></div>
+                        <div class="clear-both"></div>
+                    </div>
+                </div>
+
+                <div id="logPanel" class="hidden px-3 py-2 bg-slate-950 border-t border-slate-800/50">
+                    <div class="flex items-center flex-wrap gap-2 mb-2 pb-2 border-b border-slate-800/50">
+                        <span class="text-[8px] font-bold text-slate-600 uppercase tracking-widest mr-auto">Debug Tools</span>
+                        <div id="hostedControls" class="flex items-center gap-1 mr-2 hidden">
+                            <button onclick="window.toggleCC()" class="cc-toggle-btn nav-item p-1.5 bg-slate-850 border border-slate-700 rounded text-slate-400 hover:text-white flex items-center justify-center"><i class="fa-regular fa-closed-captioning text-[9px]"></i></button>
+                            <button onclick="window.togglePlay()" class="play-toggle-btn nav-item p-1.5 bg-slate-850 border border-slate-700 rounded text-slate-400 hover:text-white flex items-center justify-center"><i class="fa-solid fa-play text-[9px]"></i></button>
+                            <button onclick="window.toggleMute()" class="mute-toggle-btn nav-item p-1.5 bg-slate-850 border border-slate-700 rounded text-slate-400 hover:text-white flex items-center justify-center"><i class="fa-solid fa-volume-xmark text-[9px]"></i></button>
+                        </div>
+                        <button id="controlsToggle" onclick="window.toggleControls()" class="nav-item p-1.5 bg-slate-800 border border-slate-700/50 rounded text-slate-400 hover:text-white flex items-center justify-center transition-colors" title="Toggle Native Video Controls">
+                            <i class="fa-solid fa-sliders text-[9px]"></i>
+                        </button>
+                        <button onclick="window.openCurrentTab()" class="nav-item p-1.5 bg-slate-800 border border-slate-700/50 rounded text-slate-400 hover:text-white flex items-center justify-center transition-colors" title="Open Stream in New Tab">
+                            <i class="fa-solid fa-up-right-from-square text-[9px]"></i>
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 h-40">
+                        <div class="flex flex-col gap-1 min-w-0">
+                            <div class="text-[8px] font-bold text-slate-600 uppercase tracking-tighter">Boot Log</div>
+                            <div id="bootLog" class="flex-grow font-mono text-[9px] text-slate-500 overflow-y-auto hide-scroll bg-black/40 rounded p-1"></div>
+                        </div>
+                        <div class="flex flex-col gap-1 min-w-0">
+                            <div class="text-[8px] font-bold text-slate-600 uppercase tracking-tighter">Resolution Log</div>
+                            <div id="resolutionLog" class="flex-grow font-mono text-[9px] text-emerald-600 overflow-y-auto hide-scroll bg-black/40 rounded p-1"></div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </main>
 
+    <div class="fixed bottom-4 left-4 z-50 flex flex-col gap-2 opacity-80 hover:opacity-100 transition-opacity">
+        <button onclick="window.scrollList(-1)" class="nav-item p-3 bg-slate-800/90 text-white rounded-full shadow-xl border border-slate-700 backdrop-blur active:scale-95 active:bg-brand-600 transition-all"><i class="fa-solid fa-arrow-up text-sm"></i></button>
+        <button onclick="window.scrollList(1)" class="nav-item p-3 bg-slate-800/90 text-white rounded-full shadow-xl border border-slate-700 backdrop-blur active:scale-95 active:bg-brand-600 transition-all"><i class="fa-solid fa-arrow-down text-sm"></i></button>
+    </div>
+
+    <footer class="mt-auto border-t border-slate-900 bg-slate-950 p-4 sticky bottom-0 z-30">
+        <div class="text-center text-[10px] text-slate-700">
+            TV Guide v2.0 • Press <i class="fa-solid fa-terminal"></i> in player for diagnostic tools
+        </div>
+    </footer>
+
+    <!-- LOGIC -->
     <script>
-        const CHANNEL_MAP = {
-            "CNNW": "CNN", "FOXNEWSW": "FOX NEWS", "MSNOW": "MSNBC", "CNBC": "CNBC", "BLOOMBERG": "BLOOMBERG",
-            "FBC": "FOX BUSINESS", "COM": "COMEDY CENTRAL", "CSPAN": "C-SPAN 1", "CSPAN2": "C-SPAN 2",
-            "CSPAN3": "C-SPAN 3", "KNTV": "NBC", "KTVU": "FOX", "KPIX": "CBS", "KGO": "ABC", "KQED": "PBS"
-        };
+        // --- API FALLBACK CONFIGURATION (Edit or clear these to test the full REST API) ---
+------------------------
 
-        const STATIONS = Object.keys(CHANNEL_MAP).map(k => `TV-${k}`);
-        
-        let state = {
-            page: 1, player: null, activeId: null,
-            itemCache: new Map(),
-            validationQueue: [], isQueueRunning: false,
-            currentStartTime: 0,
-            activeSegments: [],
-            totalDuration: 0
-        };
+        window.onerror = (msg) => { console.error(msg); return true; };
 
-        window.onload = () => { initStationDropdown(); initPlayer(); resetAndSearch(); };
-
-        function toggleDropdown() { document.getElementById('network-dropdown').classList.toggle('hidden'); }
-
-        function initStationDropdown() {
-            const container = document.getElementById('network-options-container');
-            STATIONS.forEach(s => {
-                const key = s.replace('TV-', '');
-                const label = CHANNEL_MAP[key];
-                const div = document.createElement('label');
-                div.className = "flex items-center gap-3 py-2 px-3 rounded-md cursor-pointer hover:bg-slate-800 transition-colors group";
-                div.innerHTML = `
-                    <input type="checkbox" value="${s}" checked onchange="updateNetworkSelection()" class="station-checkbox w-3.5 h-3.5 accent-blue-600 rounded">
-                    <span class="text-[10px] font-bold uppercase tracking-tight text-slate-400 group-hover:text-blue-400 flex-1">${label}</span>
-                `;
-                container.appendChild(div);
-            });
-            updateNetworkSelection();
-        }
-
-        function setAllStations(checked) {
-            document.querySelectorAll('.station-checkbox').forEach(cb => cb.checked = checked);
-            updateNetworkSelection();
-        }
-
-        function updateNetworkSelection() {
-            const checked = document.querySelectorAll('.station-checkbox:checked').length;
-            document.getElementById('network-count').innerText = (checked === STATIONS.length) ? 'All' : checked;
-        }
-
-        function initPlayer() {
-            state.player = videojs('main-video', { fluid: true, controls: true });
-            state.player.on('timeupdate', () => {
-                if (!state.totalDuration) return;
-                const globalTime = state.currentStartTime + state.player.currentTime();
-                const safePercent = Math.min((globalTime / state.totalDuration) * 100, 100);
-                document.getElementById('global-seekbar-fill').style.width = `${safePercent}%`;
-                document.getElementById('global-time-display').innerText = `${formatHMS(globalTime)} / ${formatHMS(state.totalDuration)}`;
-            });
-        }
-
-        function handleGlobalSeek(e) {
-            if (!state.totalDuration) return;
-            const rect = e.currentTarget.getBoundingClientRect();
-            const clickedTime = ((e.clientX - rect.left) / rect.width) * state.totalDuration;
-            const segmentIndex = Math.floor(clickedTime / 365);
-            const seg = state.activeSegments[segmentIndex];
-            if (seg) playSegment(seg.start, seg.end, clickedTime % 365);
-        }
-
-        async function resetAndSearch() {
-            state.page = 1; 
-            state.validationQueue = []; 
-            state.isQueueRunning = false;
-            document.getElementById('results-grid').innerHTML = '';
-            document.getElementById('verify-btn').classList.add('hidden');
-            search();
-        }
-
-        function loadMore() { state.page++; search(); }
-
-        function transformTitle(raw) {
-            // Strip prefixes like TV-CNNW_ or FOXNEWSW_
-            let clean = raw.replace(/^TV-[A-Z0-9]+_/, '').replace(/[_-]/g, ' ');
+        (async () => {
+            const s = id => document.getElementById(id);
+            const CACHE_KEY = "epg_metadata_v1", CACHE_TTL = 86400000, CC_PREF_KEY = "epg_cc_enabled";
             
-            // Look for Date/Time patterns (e.g. 20240101 080000)
-            const dateMatch = clean.match(/(\d{4})(\d{2})(\d{2})\s+(\d{2})(\d{2})(\d{2})/);
-            if (dateMatch) {
-                const [_, y, m, d, hh, mm, ss] = dateMatch;
-                const dateStr = new Date(`${y}-${m}-${d}`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-                return {
-                    main: dateStr,
-                    sub: `${hh}:${mm}:${ss} UTC`
+            // --- CONSOLIDATED CONFIGURATION ---
+            const CONFIG = {
+                CLASS: {
+                    ACTIVE: 'ring-1 ring-brand-500 bg-slate-800 channel-card-active',
+                    RESET: 'bg-slate-850'
+                },
+                ICON: {
+                    PLAY: '<i class="fa-solid fa-play text-[9px]"></i>',
+                    PAUSE: '<i class="fa-solid fa-pause text-[9px] text-brand-500"></i>',
+                    MUTE: '<i class="fa-solid fa-volume-xmark text-[9px] text-red-500"></i>',
+                    VOL: '<i class="fa-solid fa-volume-high text-[9px]"></i>'
+                },
+                RESOLVER_BASE: 'https://www.whatsmydns.net/url-unshortener?q=',
+                ENGINES: {
+                    S1A: 'ANY_CLAPPR',
+                    S2: 'NATIVE'
+                },
+                SOURCES: { S1: 'S1', S1A: 'S1a', S2: 'S2', S2A: 'S2a' }
+            };
+
+            const HELPERS = {
+                getInitials: (name) => {
+                    const initials = (name||"").match(/\b\w/g)?.slice(0,3).join('').toUpperCase();
+                    return initials || (name||"").substring(0,3).toUpperCase();
+                },
+                getLogoHtml: (logos, name) => {
+                    const ini = HELPERS.getInitials(name);
+                    return logos?.[0] 
+                        ? `<img src="${logos[0]}" loading="lazy" class="w-full h-full object-contain" onerror="window.handleLogoError(this, '${ini}')">`
+                        : `<span class="text-xs font-bold">${ini}</span>`;
+                }
+            };
+
+            const resolvedCache = new Map();
+            let channelsMap = new Map(), meta = new Map(), baseCats = new Set();
+            let filter = 'All', searchTerm = '', scheduleLoaded = false, currentStreamUrl = "";
+            let manualMute = false, ccActive = localStorage.getItem(CC_PREF_KEY) === 'true', hasCaptions = false, controlsActive = false;
+            let currentEngine = 'NATIVE', currentPlayer = null, hlsInstance = null, statsInterval = null;
+            
+            // --- API URL PARAMETERS ---
+            const urlParams = new URLSearchParams(window.location.search);
+            const s1Format = urlParams.get('s1_format') || API_FALLBACKS.s1_format;
+            const s2Format = urlParams.get('s2_format') || API_FALLBACKS.s2_format;
+            const proxyUrl = urlParams.get('proxy_url') || API_FALLBACKS.proxy_url;
+            const metaUrl = urlParams.get('metadata_url') || API_FALLBACKS.metadata_url;
+            const scheduleUrl = urlParams.get('schedule_url') || API_FALLBACKS.schedule_url;
+
+            let loadStartTime = 0, currentActiveSid = null, recoveryAttempts = 0; 
+
+            const setStatus = (txt) => { const el = s('lastEvent'); if (el) el.innerText = txt ? txt.toUpperCase() : "IDLE"; };
+            const vlog = (msg) => {
+                const log = s('bootLog'); if(!log) return;
+                const entry = document.createElement('div'); entry.className = "border-b border-white/5 py-0.5";
+                entry.innerHTML = `<span class="opacity-40">[${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'})}]</span> ${msg}`;
+                log.prepend(entry);
+            };
+            const rlog = (msg) => { const log = s('resolutionLog'); if(!log) return; const entry = document.createElement('div'); entry.innerHTML = `> ${msg}`; log.prepend(entry); };
+
+            const getS1Url = (slug) => s1Format ? s1Format.replace('{slug}', slug) : "";
+            const getS2Url = (slug) => s2Format ? s2Format.replace('{slug}', slug) : "";
+            const loaderHTML = `<div id="vLoader" class="absolute inset-0 flex items-center justify-center bg-black z-50 text-white font-bold tracking-widest pointer-events-none"><div class="flex flex-col items-center gap-2"><i class="fa-solid fa-circle-notch fa-spin text-2xl text-brand-500"></i><span class="text-xs opacity-70">LOADING...</span></div></div>`;
+
+            const isHostedEngine = (eng) => eng === 'STAND_ALONE' || eng === 'DEBUG' || eng.startsWith('ANY_');
+
+            window.toggleStats = () => {
+                const overlay = s('statsOverlay'), panel = s('logPanel'), btn = s('logToggle');
+                if (!overlay || !panel) return;
+                const isHidden = panel.classList.contains('hidden');
+                panel.classList.toggle('hidden'); overlay.classList.toggle('hidden');
+                if (btn) { btn.classList.toggle('bg-brand-600', isHidden); btn.classList.toggle('text-white', isHidden); }
+                if(!overlay.classList.contains('hidden')) {
+                    if(statsInterval) clearInterval(statsInterval);
+                    statsInterval = setInterval(updateStats, 1000); vlog("Diagnostic view enabled");
+                } else { clearInterval(statsInterval); }
+            };
+
+            const updateStats = () => {
+                const content = s('statsContent'); if(!content) return;
+                let html = `ENGINE: ${currentEngine}<br>URL: ${currentStreamUrl ? currentStreamUrl.split('?')[0].split('/').pop() : 'NONE'}<br>`;
+                if(currentPlayer) {
+                    const v = currentPlayer.tagName === 'VIDEO' ? currentPlayer : (currentPlayer.video || document.querySelector('video'));
+                    if(v) {
+                        html += `RES: ${v.videoWidth}x${v.videoHeight}<br>VOL: ${Math.round(v.volume * 100)}% ${v.muted ? '(MUTED)' : ''}<br>`;
+                        html += `BUFFER: ${v.buffered.length ? (v.buffered.end(0) - v.currentTime).toFixed(2) + 's' : '0s'}<br>`;
+                    }
+                }
+                if(currentEngine === 'HLS.JS' && hlsInstance) { html += `BITRATE: ${(hlsInstance.levels[hlsInstance.currentLevel]?.bitrate / 1000000).toFixed(2)} Mbps<br>`; }
+                content.innerHTML = html;
+            };
+
+            const getProgramInfo = (chan, now) => {
+                const ps = (chan.next_programs || []).filter(p => now <= (new Date(p['data-listdatetime']).getTime() + (p['data-duration'] * 60000)));
+                if (!scheduleLoaded) return { current: "Loading...", next: "", isOffAir: false, isMovie: false };
+                if (!ps.length) return { current: "Sign Off", next: "", isOffAir: true, isMovie: false };
+                const showRaw = ps[0]['data-showname'] || "", epRaw = ps[0]['data-episodetitle'] || "", isMov = showRaw.toLowerCase() === 'movie';
+                const format = (p) => {
+                    const show = p['data-showname'] || "", ep = p['data-episodetitle'] || "";
+                    if (show.toLowerCase() === 'movie') return ep || 'Movie';
+                    return ep ? `${show}: ${ep}` : show;
                 };
+                const nextTime = ps[1] ? new Date(ps[1]['data-listdatetime']).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : "";
+                return { current: format(ps[0]), next: ps[1] ? `${nextTime} - ${format(ps[1])}` : "", isOffAir: false, isMovie: isMov, rawShow: showRaw, rawEp: epRaw, desc: ps[0]['data-description'] || "No description." };
+            };
+
+            const fetchResilient = async (url, lbl, isJson=true) => {
+                if(!url) return null;
+                const enc = encodeURIComponent(url + (url.includes('?')?'&':'?') + 't=' + Date.now());
+                const proxies = [["corsproxy.io", `https://corsproxy.io/?url=${enc}`], ["allorigins", `https://api.allorigins.win/get?url=${enc}`]];
+                for (const [name, pUrl] of proxies) {
+                    try {
+                        const res = await fetch(pUrl); if (!res.ok) continue;
+                        let d = name === "allorigins" ? (await res.json()).contents : await res.text();
+                        if (isJson && typeof d === 'string') d = JSON.parse(d);
+                        if(d) return d;
+                    } catch (e) {}
+                }
+                return null;
+            };
+
+            const players = {
+                'IFRAME': (url, w, variant, logo='') => {
+                    const engine = variant.startsWith('ANY_') ? variant.split('_')[1].toLowerCase() : 'clappr';
+                    const encodedUrl = encodeURIComponent(url), encodedLogo = encodeURIComponent(logo);
+                    let frameUrl = "";
+                    if (variant === 'DEBUG') { frameUrl = `https://galeksandrp.github.io/hls.js/demo/?src=${encodedUrl}&enableStreaming=true&autoRecoverError=true`; }
+                    else if (variant === 'STAND_ALONE') { frameUrl = `${proxyUrl}?url=${encodedUrl}&player=clappr&autoplay=1&loop=1&controls=hidden&width=responsive`; }
+                    else { frameUrl = `${proxyUrl}?url=${encodedUrl}&player=${engine}&autoplay=1&loop=1&controls=hidden&theme=flat&logo=1&poster=${encodedLogo}&width=responsive`; }
+                    const handleFrameLoad = () => { if(s('vLoader')) s('vLoader').style.display='none'; setStatus('playing'); if (loadStartTime > 0) { s('loadTimeDisplay').innerText = `Loaded in ${((Date.now() - loadStartTime) / 1000).toFixed(2)}s`; loadStartTime = 0; } };
+                    w.innerHTML = loaderHTML + `<iframe id="extPlayerFrame" src="${frameUrl}" width="100%" height="100%" frameborder="0" allow="autoplay; fullscreen"></iframe>`;
+                    s('extPlayerFrame').onload = handleFrameLoad; return { type: 'iframe' };
+                },
+                'NATIVE': (url, w) => { w.innerHTML = loaderHTML + `<video id="videoPlayer" autoplay ${controlsActive?'controls':''} style="width:100%;height:100%;background:#000"></video>`; const v = s('videoPlayer'); v.muted = manualMute; v.src = url; setupNativeEvents(v, 'NATIVE'); v.play().catch(()=>{}); return v; },
+                'HLS.JS': (url, w) => { w.innerHTML = loaderHTML + `<video id="videoPlayer" autoplay ${controlsActive?'controls':''} style="width:100%;height:100%;background:#000"></video>`; const v = s('videoPlayer'); v.muted = manualMute; if(Hls.isSupported()) { hlsInstance = new Hls(); setupHlsLogging(hlsInstance); hlsInstance.loadSource(url); hlsInstance.attachMedia(v); } else { v.src = url; } setupNativeEvents(v, 'HLS.JS'); return v; },
+                'VIDEOJS': (url, w) => { w.innerHTML = loaderHTML + `<video id="vjs_player" class="video-js vjs-default-skin vjs-big-play-centered" style="width:100%;height:100%"></video>`; const p = videojs('vjs_player', { autoplay: true, muted: manualMute, controls: controlsActive, sources: [{ src: url, type: 'application/x-mpegURL' }] }); p.one('play', ()=>{ if(s('vLoader')) s('vLoader').style.display='none'; setStatus('playing'); }); p.ready(() => { if(p.tech().el()) setupNativeEvents(p.tech().el(), 'VIDEOJS'); }); return p; },
+                'PLYR': (url, w) => { w.innerHTML = loaderHTML + `<video id="plyr_player" crossorigin playsinline style="width:100%;height:100%"></video>`; const v = s('plyr_player'); setupNativeEvents(v, 'PLYR'); if(Hls.isSupported()) { hlsInstance = new Hls(); setupHlsLogging(hlsInstance); hlsInstance.loadSource(url); hlsInstance.attachMedia(v); } else v.src = url; return new Plyr(v, { autoplay: true, muted: manualMute, controls: controlsActive ? ['play-large','play','progress','current-time','mute','volume','captions','settings','pip','airplay','fullscreen'] : [] }); },
+                'CLAPPR': (url, w) => { w.innerHTML = loaderHTML + `<div id="clapprContainer"></div>`; const p = new Clappr.Player({ source: url, parentId: "#clapprContainer", width: '100%', height: '100%', autoPlay: true, mute: manualMute, chromeless: !controlsActive }); p.on(Clappr.Events.PLAYER_PLAY, ()=>{ if(s('vLoader')) s('vLoader').style.display='none'; setStatus('playing'); updatePlayButton(); }); return p; },
+                'ARTPLAYER': (url, w) => { w.innerHTML = loaderHTML + `<div id="artContainer"></div>`; const p = new Artplayer({ container: '#artContainer', url: url, type: 'm3u8', autoplay: true, muted: manualMute, isLive: true, customType: { m3u8: (v, u) => { if(Hls.isSupported()){ hlsInstance=new Hls(); setupHlsLogging(hlsInstance); hlsInstance.loadSource(u); hlsInstance.attachMedia(v); } else v.src=u; } } }); if(p.video) setupNativeEvents(p.video, 'ARTPLAYER'); return p; },
+                'SHAKA': (url, w) => { w.innerHTML = loaderHTML + `<div id="shakaContainer" style="width:100%;height:100%"><video id="shakaVideo" style="width:100%;height:100%;background:#000" autoplay></video></div>`; shaka.polyfill.installAll(); const v = s('shakaVideo'); setupNativeEvents(v, 'SHAKA'); const p = new shaka.Player(v), ui = new shaka.ui.Overlay(p, s('shakaContainer'), v); v.muted = manualMute; p.load(url).then(()=>{ v.play().catch(()=>{}); }); return { player: p, ui: ui, video: v }; },
+                'DPLAYER': (url, w) => { w.innerHTML = loaderHTML + `<div id="dplayerContainer"></div>`; const p = new DPlayer({ container: s('dplayerContainer'), autoplay: true, video: { url: url, type: 'hls' }, volume: manualMute?0:0.7 }); if(p.video) setupNativeEvents(p.video, 'DPLAYER'); return p; }
+            };
+
+            async function play(u, eng, name, title, dTitle, extra = {}) {
+                if(eng) setEngine(eng);
+                s('playerContainer').classList.remove('hidden');
+                const body=s('pd-desc'), logoEl=s('playingLogo');
+                body.innerText = ""; s('loadTimeDisplay').innerText = ""; vlog(`Switching to ${name} (${dTitle})`); setStatus('loading'); recoveryAttempts = 0;
+                
+                if(extra.sid && meta.has(extra.sid)) {
+                    const m = meta.get(extra.sid);
+                    logoEl.classList.remove('hidden');
+                    logoEl.innerHTML = HELPERS.getLogoHtml(m.logos, name);
+                } else { logoEl.classList.add('hidden'); }
+
+                if(extra.sid && channelsMap.has(extra.sid)) {
+                    const c = channelsMap.get(extra.sid);
+                    const prog = getProgramInfo(c, Date.now());
+                    if(!prog.isOffAir) {
+                        if(prog.rawShow.toLowerCase() === 'movie') s('playingTitle').innerText = prog.rawEp || prog.rawShow;
+                        else s('playingTitle').innerHTML = prog.rawEp ? `${prog.rawShow} <span class="text-[11px] text-slate-400 font-normal ml-1.5 tracking-normal">${prog.rawEp}</span>` : prog.rawShow;
+                        body.innerText = prog.desc; 
+                    } else { s('playingTitle').innerText = name; }
+                } else { s('playingTitle').innerText = name; }
+
+                if(!u && extra.resolver) {
+                    const ru = await resolveUrl(extra.slug, extra.label);
+                    if(ru) loadStream(ru, ""); else { setStatus('error'); s('loadTimeDisplay').innerText = "Resolution Error"; }
+                } else if(u) { loadStream(u, ""); }
             }
             
-            // Fallback for simple titles
-            return { main: clean.length > 25 ? clean.substring(0, 25) + '...' : clean, sub: 'ARCHIVE ITEM' };
-        }
-
-        async function search() {
-            const loader = document.getElementById('loader');
-            loader?.classList.remove('hidden');
-            const selected = Array.from(document.querySelectorAll('.station-checkbox:checked')).map(c => c.value);
-            const userQuery = document.getElementById('searchInput').value.trim();
-            
-            let q = `mediatype:movies AND (${selected.map(s => `collection:${s}`).join(" OR ")})`;
-            if (userQuery) q += ` AND (title:(${userQuery}) OR description:(${userQuery}))`;
-
-            const params = new URLSearchParams({ q, 'fl[]': ['identifier', 'title'], 'sort[]': 'publicdate desc', rows: 40, page: state.page, output: 'json' });
-            document.getElementById('endpoint-display').innerText = `https://archive.org/advancedsearch.php?${params.toString()}`;
-            
-            try {
-                const res = await fetch(`https://archive.org/advancedsearch.php?${params.toString()}`);
-                const data = await res.json();
-                renderGrid(data.response.docs);
-                
-                data.response.docs.forEach(doc => {
-                    if (!state.itemCache.has(doc.identifier)) {
-                        state.validationQueue.push(doc);
+            window.play = play;
+            window.changeEngine = (val) => { currentEngine = val; updateControlVisibility(val); if(currentStreamUrl) loadStream(currentStreamUrl); };
+            const setEngine = (e) => { currentEngine = e; s('playerEngineSelect').value = e; updateControlVisibility(e); };
+            const updateControlVisibility = (eng) => { const hosted = isHostedEngine(eng); s('mainControls').classList.toggle('hidden', hosted); s('hostedControls').classList.toggle('hidden', !hosted); };
+            const destroyActivePlayer = () => {
+                if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
+                if (currentPlayer) { try { if (currentPlayer.ui?.destroy) { currentPlayer.ui.destroy(); currentPlayer.player.destroy(); } else if (currentPlayer.dispose) currentPlayer.dispose(); else if (currentPlayer.destroy) currentPlayer.destroy(); } catch(e) {} }
+                currentPlayer = null; s('videoWrapper').innerHTML = '';
+            };
+            const setupHlsLogging = (h) => { 
+                if(!h) return; h.on(Hls.Events.SUBTITLE_TRACKS_UPDATED, checkCaps); h.on(Hls.Events.MANIFEST_PARSED, checkCaps);
+                h.on(Hls.Events.ERROR, (e,d) => { if(d.fatal) { setStatus('recovery'); switch(d.type) { case Hls.ErrorTypes.NETWORK_ERROR: h.startLoad(); break; case Hls.ErrorTypes.MEDIA_ERROR: h.recoverMediaError(); break; default: h.destroy(); setTimeout(() => loadStream(currentStreamUrl), 1000); break; } } });
+            };
+            const checkCaps = () => { hasCaptions = true; updateCCUI(); applyCCState(); };
+            const setupNativeEvents = (v, eng) => {
+                if(!v) return; if(v.textTracks) { v.textTracks.addEventListener('addtrack', checkCaps); if(v.textTracks.length) checkCaps(); }
+                ['play','playing','pause','volumechange','error'].forEach(e => { v.addEventListener(e, () => { setStatus(e); if(e==='playing'||e==='loadeddata') { recoveryAttempts = 0; if(s('vLoader')) s('vLoader').style.display='none'; if (loadStartTime > 0) { s('loadTimeDisplay').innerText = `Loaded in ${((Date.now() - loadStartTime) / 1000).toFixed(2)}s`; loadStartTime = 0; } } if (e === 'error' && recoveryAttempts < 5) { recoveryAttempts++; setStatus('retrying'); setTimeout(() => { if(currentStreamUrl) loadStream(currentStreamUrl); }, 2000); } if(['play','playing','pause'].includes(e)) updatePlayButton(v); if(e==='volumechange' && !v.muted && v.volume>0) s('unmutePrompt').style.display='none'; }); });
+            };
+            const loadStream = (url, logoUrl='') => { destroyActivePlayer(); currentStreamUrl = url; hasCaptions = false; updateCCUI(); loadStartTime = Date.now(); s('loadTimeDisplay').innerText = ""; const eng = currentEngine; if(isHostedEngine(eng)) currentPlayer = players.IFRAME(url, s('videoWrapper'), eng, logoUrl); else if(players[eng]) currentPlayer = players[eng](url, s('videoWrapper')); };
+            window.toggleFullscreen = () => { const e=s('videoWrapper'); if(!e)return; if (document.fullscreenElement) document.exitFullscreen(); else e.requestFullscreen().catch(()=>{}); };
+            window.togglePlay = () => { if(!currentPlayer) return; try { const v = currentPlayer.tagName === 'VIDEO' ? currentPlayer : (currentPlayer.video || document.querySelector('video')); if(v) v.paused?v.play():v.pause(); } catch(e){} };
+            window.toggleMute = () => { 
+                manualMute = !manualMute; 
+                document.querySelectorAll('.mute-toggle-btn').forEach(i => i.innerHTML = manualMute ? CONFIG.ICON.MUTE : CONFIG.ICON.VOL);
+                try { const v = currentPlayer.tagName === 'VIDEO' ? currentPlayer : (currentPlayer.video || document.querySelector('video')); if(v) v.muted = manualMute; } catch(e){} 
+            };
+            window.toggleControls = () => { controlsActive = !controlsActive; s('controlsToggle').classList.toggle('bg-brand-600', controlsActive); s('controlsToggle').classList.toggle('text-white', controlsActive); if(!currentPlayer) return; try { const v = currentPlayer.tagName === 'VIDEO' ? currentPlayer : (currentPlayer.video || document.querySelector('video')); if(v) v.controls = controlsActive; } catch(e){} };
+            const updateCCUI = () => { document.querySelectorAll('.cc-toggle-btn').forEach(b => { b.style.opacity = hasCaptions ? 1 : 0.5; b.style.cursor = hasCaptions ? 'pointer' : 'not-allowed'; b.classList.toggle('text-brand-500', hasCaptions && ccActive); }); };
+            const applyCCState = () => { if(!hasCaptions) return; if(currentEngine==='HLS.JS'&&hlsInstance) hlsInstance.subtitleTrack=ccActive?0:-1; let v=s('videoPlayer')||currentPlayer?.video; if(v?.textTracks) Array.from(v.textTracks).forEach(t=>t.mode=ccActive?'showing':'hidden'); };
+            window.toggleCC = () => { if(!hasCaptions) return; ccActive=!ccActive; localStorage.setItem(CC_PREF_KEY, ccActive); applyCCState(); updateCCUI(); };
+            const updatePlayButton = (v) => { const html = (v?v.paused:true) ? CONFIG.ICON.PLAY : CONFIG.ICON.PAUSE; document.querySelectorAll('.play-toggle-btn').forEach(b => b.innerHTML = html); };
+            window.unmutePlayer = () => { manualMute=false; window.toggleMute(); s('unmutePrompt').style.display='none'; };
+            window.reloadCurrent = () => { recoveryAttempts = 0; currentStreamUrl && loadStream(currentStreamUrl); };
+            window.closePlayer = () => { setStatus('idle'); destroyActivePlayer(); s('playerContainer').classList.add('hidden'); currentActiveSid = null; draw(); };
+            window.openCurrentTab = () => {
+                if(!currentStreamUrl) return; const u=encodeURIComponent(currentStreamUrl); 
+                if(isHostedEngine(currentEngine)) { const eng = currentEngine.startsWith('ANY_') ? currentEngine.split('_')[1].toLowerCase() : 'clappr'; window.open(`${proxyUrl}?url=${u}&player=${eng}&autoplay=1&muted=${manualMute?1:0}&width=responsive`,'_blank'); } 
+                else window.open(currentStreamUrl,'_blank'); 
+            };
+            const renderSourceButtons = (sid, n, prog) => {
+                const c = s('sourceSelect'), m = meta.get(sid); if(!c || !m) return;
+                const esc = (s) => (s||"").replace(/'/g, "\\'"); c.dataset.sid = esc(sid); c.dataset.name = esc(n); c.dataset.prog = esc(prog);
+                let h = "";
+                if(m.slug1) h += `<option value="${CONFIG.SOURCES.S1}">${CONFIG.SOURCES.S1}</option><option value="${CONFIG.SOURCES.S1A}">${CONFIG.SOURCES.S1A}</option>`;
+                if(m.slug2) h += `<option value="${CONFIG.SOURCES.S2}">${CONFIG.SOURCES.S2}</option><option value="${CONFIG.SOURCES.S2A}">${CONFIG.SOURCES.S2A}</option>`;
+                c.innerHTML = h; c.classList.toggle('hidden', !h);
+            };
+            window.handleSourceChange = (val) => {
+                const c = s('sourceSelect'), m = meta.get(c.dataset.sid);
+                if (val === CONFIG.SOURCES.S1) window.playDirectS1(m.slug1, c.dataset.name, c.dataset.prog, c.dataset.sid);
+                else if (val === CONFIG.SOURCES.S1A) window.playResolver(m.slug1, CONFIG.SOURCES.S1A, c.dataset.name, c.dataset.prog, c.dataset.sid);
+                else if (val === CONFIG.SOURCES.S2) window.playDirectS2(m.slug2, c.dataset.name, c.dataset.prog, c.dataset.sid);
+                else if (val === CONFIG.SOURCES.S2A) window.playResolver(m.slug2, CONFIG.SOURCES.S2A, c.dataset.name, c.dataset.prog, c.dataset.sid);
+            };
+            window.setActiveSource = (lbl) => { const sel = s('sourceSelect'); if (sel) sel.value = lbl; };
+            window.playDirectS1 = (s,n,t,id) => { window.setActiveSource(CONFIG.SOURCES.S1); play(getS1Url(s), 'STAND_ALONE', n, t, CONFIG.SOURCES.S1, {sid:id}); };
+            window.playDirectS2 = (s,n,t,id) => { window.setActiveSource(CONFIG.SOURCES.S2); play(getS2Url(s), CONFIG.ENGINES.S2, n, t, CONFIG.SOURCES.S2, {sid:id}); };
+            window.playResolver = (s,l,n,t,id) => { window.setActiveSource(l); const e = l===CONFIG.SOURCES.S1A ? CONFIG.ENGINES.S1A : CONFIG.ENGINES.S2; play(null, e, n, t, l, {sid:id, resolver:true, slug:s, label:l}); };
+            window.playAuto = async (sid, n, t) => {
+                if (currentActiveSid === sid) { window.toggleFullscreen(); return; }
+                const m=meta.get(sid); if(!m) return;
+                currentActiveSid = sid;
+                document.querySelectorAll('.channel-card-active').forEach(el => { el.className = el.className.replace(CONFIG.CLASS.ACTIVE, CONFIG.CLASS.RESET); });
+                const newEl = document.querySelector(`[data-sid="${sid}"]`);
+                if (newEl) { newEl.className = newEl.className.replace(CONFIG.CLASS.RESET, CONFIG.CLASS.ACTIVE); newEl.focus(); }
+                renderSourceButtons(sid, n, t); play(null, null, n, t, 'AUTO', {sid:sid});
+                if(m.slug1) { const u=await resolveUrl(m.slug1, CONFIG.SOURCES.S1A); if(u) { setEngine(CONFIG.ENGINES.S1A); loadStream(u, ""); window.setActiveSource(CONFIG.SOURCES.S1A); return; } }
+                if(m.slug2) { setEngine(CONFIG.ENGINES.S2); loadStream(getS2Url(m.slug2), ""); window.setActiveSource(CONFIG.SOURCES.S2); }
+            };
+            window.toggleSearch = () => { const c=s('searchContainer'); if(!c.classList.toggle('hidden')) s('searchInput').focus(); else { s('searchInput').value=''; searchTerm=''; draw(); } };
+            window.sf = (v) => { filter=v; draw(); window.scrollTo({top:0,behavior:'smooth'}); };
+            window.onSearch = (v) => { searchTerm=v.toLowerCase().trim(); draw(); };
+            window.handleLogoError = (i, t) => { const p=i.parentElement; p.classList.add('bg-slate-700'); p.innerHTML=`<span class="text-xs font-bold">${t}</span>`; };
+            window.scrollList = (d) => window.scrollBy({top:window.innerHeight*0.7*d, behavior:'smooth'});
+            const resolveUrl = async (slug, label) => {
+                const key = `${label}:${slug}`; if (resolvedCache.has(key)) return resolvedCache.get(key);
+                const b = label.startsWith('S1') ? getS1Url(slug) : getS2Url(slug);
+                if(!b) return null;
+                const r = await fetchResilient(CONFIG.RESOLVER_BASE + encodeURIComponent(b), "unshortener", false);
+                if(r) {
+                    const doc = new DOMParser().parseFromString(r, 'text/html'), l = doc.querySelector('a[href*="token="], a[href*=".m3u8"]');
+                    if(l?.href) { let f = l.href; if(label === CONFIG.SOURCES.S2A) { const u = new URL(f), p = u.hostname.split('.'); if(p.length >= 2) { p[0] = 'e2'; u.hostname = p.join('.'); f = u.toString(); } } resolvedCache.set(key, f); return f; }
+                }
+                resolvedCache.set(key, null); return null;
+            };
+            const draw = () => {
+                const now=Date.now(), html=[], focusedSid = document.activeElement ? document.activeElement.getAttribute('data-sid') : null;
+                for(const [sid, c] of channelsMap) {
+                    const m=meta.get(sid)||{}, prog=getProgramInfo(c, now), name=(m.name||c.title||sid);
+                    if(filter!=='All' && (filter==='Off-Air'?!prog.isOffAir : filter==='Movies'?!prog.isMovie : m.category!==filter)) continue;
+                    if(searchTerm && !name.toLowerCase().includes(searchTerm) && !prog.current.toLowerCase().includes(searchTerm)) continue;
+                    const activeClass = sid === currentActiveSid ? CONFIG.CLASS.ACTIVE : CONFIG.CLASS.RESET;
+                    let displayHtml = prog.current; if (!prog.isMovie && prog.rawEp && prog.rawShow) displayHtml = `${prog.rawShow} <span class="text-xs text-slate-400 font-normal ml-1 opacity-90">${prog.rawEp}</span>`;
+                    html.push(`<div data-sid="${sid}" tabindex="0" onclick="window.playAuto('${sid}','${name.replace(/'/g,"\\'")}','${prog.current.replace(/'/g,"\\'")}')" class="nav-item group relative flex flex-col items-start gap-3 px-3 py-2 ${activeClass} hover:bg-slate-800 border border-slate-800/50 rounded-xl cursor-pointer focus:outline-none focus:bg-slate-800 transition-all duration-200"> <div class="flex items-center gap-3 w-full"> <div class="flex-shrink-0 w-14 h-10 bg-slate-900 rounded-lg flex items-center justify-center p-1 border border-slate-800 overflow-hidden">${HELPERS.getLogoHtml(m.logos, name)}</div> <div class="flex-grow min-w-0 epg-text-box"> <div class="flex items-center gap-2 mb-0.5"><h3 class="font-bold text-white text-sm md:text-base leading-tight truncate">${displayHtml}</h3>${(m.color==='red'||m.color==='orange')?`<span class="inline-block w-2 h-2 rounded-full ${m.color==='red'?'bg-red-500 live-dot':'bg-orange-400'} ml-2"></span>`:''}</div> ${prog.next ? `<p class="text-xs text-slate-500 mt-0.5 flex items-center gap-1 truncate"><i class="fa-regular fa-clock"></i> ${prog.next}</p>` : ''} </div> </div> </div>`);
+                }
+                const sorted = [...baseCats].sort((a,b)=>(a==='All'?-1:b==='All'?1:a==='Off-Air'?1:b==='Off-Air'?-1:a.localeCompare(b)));
+                s('filterMenu').innerHTML = sorted.map(c => `<button onclick="sf('${c}')" class="nav-item whitespace-nowrap px-3 py-1 rounded-full text-xs font-bold transition-colors ${filter===c ? 'bg-brand-600 text-white shadow' : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white'}">${c}</button>`).join('');
+                s('list').innerHTML = html.join('') || `<div class="col-span-full p-8 text-center text-slate-600">No channels found.</div>`;
+                if (focusedSid) { requestAnimationFrame(() => { const el = document.querySelector(`[data-sid="${focusedSid}"]`); if (el) el.focus(); }); }
+            };
+            window.initFocus = () => { const firstCat = document.querySelector('#filterMenu .nav-item'); if (firstCat) firstCat.focus(); };
+            document.addEventListener('keydown', (e) => {
+                const k = e.key; if (k === 'Enter') { e.preventDefault(); if (document.fullscreenElement) { document.exitFullscreen(); return; } const active = document.activeElement; if (active && active.classList.contains('nav-item')) { active.click(); return; } }
+                if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(k)) return;
+                const active = document.activeElement, items = Array.from(document.querySelectorAll('.nav-item')).filter(el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; });
+                if (items.length === 0) return; if (!items.includes(active)) { e.preventDefault(); items[0].focus(); return; }
+                const cur = active.getBoundingClientRect(), curCenter = { x: cur.left + cur.width/2, y: cur.top + cur.height/2 };
+                let best = null, bestDist = Infinity;
+                items.forEach(el => {
+                    if (el === active) return; const rect = el.getBoundingClientRect(), center = { x: rect.left + rect.width/2, y: rect.top + rect.height/2 };
+                    let isValid = false; if (k === 'ArrowUp') isValid = center.y < cur.top; else if (k === 'ArrowDown') isValid = center.y > cur.bottom; else if (k === 'ArrowLeft') isValid = center.x < cur.left; else if (k === 'ArrowRight') isValid = center.x > cur.right;
+                    if (isValid) {
+                        const dist = Math.sqrt(Math.pow(center.x - curCenter.x, 2) + Math.pow(center.y - curCenter.y, 2));
+                        let weightedDist = dist + ( (k === 'ArrowUp' || k === 'ArrowDown') ? Math.abs(center.x - curCenter.x) * 3 : Math.abs(center.y - curCenter.y) * 3 );
+                        if (weightedDist < bestDist) { bestDist = weightedDist; best = el; }
                     }
                 });
-
-                if (state.validationQueue.length > 0) {
-                    document.getElementById('verify-btn').classList.remove('hidden');
-                }
-            } catch (e) { 
-                console.error(e); 
-            } finally { 
-                loader?.classList.add('hidden'); 
-            }
-        }
-
-        function startVerification() {
-            if (state.isQueueRunning) return;
-            document.getElementById('verify-btn').classList.add('opacity-50', 'pointer-events-none');
-            document.getElementById('verify-btn').innerText = 'Verifying...';
-            processQueue();
-        }
-
-        async function processQueue() {
-            if (state.validationQueue.length === 0) { 
-                state.isQueueRunning = false; 
-                document.getElementById('verify-btn').classList.add('hidden');
-                return; 
-            }
-            state.isQueueRunning = true;
-            await validateItem(state.validationQueue.shift());
-            setTimeout(processQueue, 50);
-        }
-
-        async function validateItem(doc) {
-            const badge = document.getElementById(`badge-${doc.identifier}`);
-            if (badge) {
-                badge.className = 'status-badge status-checking';
-                badge.innerText = 'checking';
-            }
-
+                if (best) { e.preventDefault(); best.focus(); best.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+            });
             try {
-                const res = await fetch(`https://archive.org/metadata/${doc.identifier}`);
-                const data = await res.json();
-                const mp4 = (data.files || []).find(f => f.name.endsWith('.mp4') && f.source !== 'metadata' && !f.name.includes('_thumb'));
-                
-                if (!mp4) {
-                    state.itemCache.set(doc.identifier, { status: 'stub' });
-                    if (badge) { badge.className = 'status-badge status-stub'; badge.innerText = 'stub'; }
-                    document.getElementById(`card-${doc.identifier}`)?.classList.add('stub-card');
-                } else {
-                    state.itemCache.set(doc.identifier, { status: 'ready', file: mp4.name, length: mp4.length });
-                    if (badge) { badge.className = 'status-badge status-ready'; badge.innerText = 'ready'; }
+                if(s('ccToggle')) updateCCUI();
+                vlog("Booting...");
+                const activeKey = metaUrl ? `epg_${btoa(metaUrl).substring(0,12)}` : CACHE_KEY;
+                let md = null, cObj = localStorage.getItem(activeKey);
+                if(cObj) { const p=JSON.parse(cObj); if(Date.now()-p.ts<CACHE_TTL) md=p.data; }
+                if(!md && metaUrl) { md=await fetchResilient(metaUrl,'Metadata'); if(md) localStorage.setItem(activeKey, JSON.stringify({ts:Date.now(),data:md})); }
+                if(md) { 
+                    (Array.isArray(md)?md:(md.channels||md.data||[])).forEach(i => { const id=(i.mapping?.tvg_id||i.id||"").trim().toLowerCase(); if(id) { meta.set(id, {name:i.display_name, category:i.group_title, logos:i.logos, slug1:i.mapping?.slug1||i.slug, slug2:i.mapping?.slug2||i.slug2, color:(i.info||i.color||"").toString().toLowerCase()}); channelsMap.set(id, {site_id:id, title:i.display_name, next_programs:[]}); if(i.group_title) baseCats.add(i.group_title); } }); 
+                    draw(); window.initFocus();
                 }
-                return data;
-            } catch (e) { 
-                console.error(e); 
-                if (badge) { badge.className = 'status-badge status-pending'; badge.innerText = 'Error'; }
-                return null;
-            }
-        }
-
-        function renderGrid(items) {
-            const grid = document.getElementById('results-grid');
-            items.forEach(item => {
-                if (document.getElementById(`card-${item.identifier}`)) return;
-                
-                const cached = state.itemCache.get(item.identifier);
-                const statusClass = cached ? (cached.status === 'ready' ? 'status-ready' : 'status-stub') : 'status-pending';
-                const statusText = cached ? cached.status : 'Pending';
-                
-                const displayTitle = transformTitle(item.title);
-
-                const card = document.createElement('div');
-                card.id = `card-${item.identifier}`;
-                card.className = `group relative cursor-pointer overflow-hidden rounded-xl border border-slate-800 bg-slate-900 aspect-video transition-all shadow-xl hover:scale-[1.02] hover:border-slate-700 ${cached?.status === 'stub' ? 'stub-card' : ''}`;
-                card.innerHTML = `
-                    <img src="https://archive.org/services/img/${item.identifier}" class="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-all duration-300" loading="lazy">
-                    <div id="badge-${item.identifier}" class="status-badge ${statusClass}">${statusText}</div>
-                    <div class="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent pointer-events-none"></div>
-                    <div class="absolute bottom-0 left-0 right-0 p-3 z-10 card-title-container">
-                        <span class="title-sub uppercase">${displayTitle.sub}</span>
-                        <h4 class="title-main">${displayTitle.main}</h4>
-                    </div>
-                `;
-                card.onclick = async () => {
-                    const cachedData = state.itemCache.get(item.identifier);
-                    if (cachedData?.status === 'stub') {
-                        window.open(`https://archive.org/details/${item.identifier}`, '_blank');
-                    } else if (cachedData?.status === 'ready') {
-                        loadPlayer(item);
-                    } else {
-                        const badge = document.getElementById(`badge-${item.identifier}`);
-                        if (badge) badge.innerText = 'Loading...';
-                        const data = await validateItem(item);
-                        if (data && state.itemCache.get(item.identifier)?.status === 'ready') {
-                            loadPlayer(item);
-                        } else {
-                            window.open(`https://archive.org/details/${item.identifier}`, '_blank');
-                        }
-                    }
-                };
-                grid.appendChild(card);
-            });
-            document.getElementById('pagination').classList.toggle('hidden', items.length < 30);
-        }
-
-        function loadPlayer(item) {
-            state.activeId = item.identifier;
-            showView('player');
-            const info = state.itemCache.get(item.identifier);
-            state.totalDuration = parseInt(info.length) || 3600;
-            document.getElementById('p-title').innerText = item.title;
-            document.getElementById('archive-link').href = `https://archive.org/details/${item.identifier}`;
-            
-            const list = document.getElementById('seg-list');
-            list.innerHTML = '';
-            state.activeSegments = [];
-            for (let i = 0; i < state.totalDuration; i += 365) {
-                const start = i, end = Math.min(i + 365, state.totalDuration);
-                const idx = state.activeSegments.length;
-                state.activeSegments.push({ start, end });
-                const btn = document.createElement('button');
-                btn.className = "seg-btn w-full text-left p-3 rounded-xl bg-slate-800/30 border border-slate-800 flex justify-between items-center transition-all group hover:bg-slate-700/50";
-                btn.innerHTML = `
-                    <div class="flex flex-col">
-                        <span class="text-[9px] font-black text-slate-500 group-hover:text-blue-400 uppercase tracking-tighter">Part ${idx + 1}</span>
-                        <span class="mono text-[10px] text-slate-400">${formatHMS(start)}</span>
-                    </div>
-                    <svg class="w-3 h-3 text-slate-600 group-hover:text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M4.5 3a.5.5 0 00-.5.5v13a.5.5 0 00.8.4l10-6.5a.5.5 0 000-.8l-10-6.5a.5.5 0 00-.3-.1z"></path></svg>
-                `;
-                btn.onclick = () => playSegment(start, end);
-                list.appendChild(btn);
-            }
-            playSegment(0, Math.min(365, state.totalDuration));
-        }
-
-        function playSegment(start, end, seekTo = 0) {
-            const info = state.itemCache.get(state.activeId);
-            state.currentStartTime = start;
-            const url = `https://archive.org/download/${state.activeId}/${encodeURIComponent(info.file)}?start=${start}&end=${end}`;
-            state.player.src({ src: url, type: 'video/mp4' });
-            state.player.currentTime(seekTo);
-            state.player.play();
-            
-            document.querySelectorAll('.seg-btn').forEach((b, idx) => {
-                b.classList.toggle('border-blue-600', idx === state.activeSegments.findIndex(s => s.start === start));
-                b.classList.toggle('bg-blue-600/10', idx === state.activeSegments.findIndex(s => s.start === start));
-            });
-        }
-
-        function showView(v) {
-            document.getElementById('search-view').classList.toggle('hidden', v !== 'search');
-            document.getElementById('player-view').classList.toggle('hidden', v !== 'player');
-            if (v === 'search' && state.player) state.player.pause();
-        }
-
-        function formatHMS(s) {
-            const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = Math.floor(s % 60);
-            return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
-        }
-        
-        function toggleStubVisibility() { 
-            document.body.classList.toggle('show-stubs-active', document.getElementById('stubToggle').checked); 
-        }
+                if (scheduleUrl) {
+                    const sc = await fetchResilient(scheduleUrl,'Schedule');
+                    if(sc) { scheduleLoaded=true; (Array.isArray(sc)?sc:(sc.channels||[])).forEach(c => { const id=(c.site_id||"").trim().toLowerCase(); if(channelsMap.has(id)) channelsMap.get(id).next_programs=c.next_programs; else channelsMap.set(id,c); }); draw(); setInterval(draw, 60000); }
+                }
+                vlog("Ready."); rlog("Ready.");
+            } catch(e) { vlog("Error during boot."); console.error(e); }
+        })();
     </script>
 </body>
 </html>
