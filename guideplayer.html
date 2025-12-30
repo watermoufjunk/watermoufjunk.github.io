@@ -126,7 +126,7 @@
                                 </div>
                             </div>
                             
-                            <!-- Debug Button (Moved Underneath Close Button) -->
+                            <!-- Debug Button -->
                             <button id="logToggle" onclick="window.toggleStats()" class="nav-item w-6 h-6 bg-slate-800 border border-slate-700/50 rounded hover:bg-slate-700 text-slate-300 flex items-center justify-center" title="System Logs & Stats"><i class="fa-solid fa-terminal text-[9px]"></i></button>
                         </div>
 
@@ -235,7 +235,43 @@
                             document.head.appendChild(el);
                         });
                     }));
+                },
+                checkRAM: () => {
+                    if ('deviceMemory' in navigator) {
+                        const ram = navigator.deviceMemory;
+                        vlog(`Device RAM detected: ~${ram}GB`);
+                        if (ram < 3) {
+                            vlog("Low memory detected (<3GB). Performance Mode: Shadows disabled.");
+                            const style = document.createElement('style');
+                            style.id = 'perf-mode-style';
+                            style.innerHTML = `* { box-shadow: none !important; -webkit-box-shadow: none !important; }`;
+                            document.head.appendChild(style);
+                        }
+                    } else {
+                        vlog("RAM detection not supported by browser.");
+                    }
                 }
+            };
+
+            // Define fetchResilient helper
+            const fetchResilient = async (url, lbl, isJson=true) => {
+                if(!url) return null;
+                vlog(`Fetching ${lbl}: ${url.substring(0,30)}...`);
+                const enc = encodeURIComponent(url + (url.includes('?')?'&':'?') + 't=' + Date.now());
+                const proxies = [["corsproxy.io", `https://corsproxy.io/?url=${enc}`], ["allorigins", `https://api.allorigins.win/get?url=${enc}`]];
+                for (const [name, pUrl] of proxies) {
+                    try {
+                        vlog(`Via ${name}...`);
+                        const res = await fetch(pUrl); 
+                        if (!res.ok) { vlog(`HTTP ${res.status} via ${name}`); continue; }
+                        let d = name === "allorigins" ? (await res.json()).contents : await res.text();
+                        if (isJson && typeof d === 'string') d = JSON.parse(d);
+                        if(d) { vlog(`Success: ${lbl}`); return d; }
+                    } catch (e) { vlog(`Err: ${name}`); }
+                }
+                vlog(`<span class="text-red-400">Failed to fetch ${lbl}</span>`);
+                if(lbl === 'Metadata') window.toggleStats();
+                return null;
             };
 
             const resolvedCache = new Map();
@@ -260,7 +296,7 @@
                 entry.innerHTML = `<span class="opacity-40">[${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'})}]</span> ${msg}`;
                 log.prepend(entry);
             };
-            const rlog = (msg) => { const log = s('resolutionLog'); if(!log) return; const entry = document.createElement('div'); entry.innerHTML = `> ${msg}`; log.prepend(entry); };
+            const rlog = (msg) => { const log = s('resolutionLog'); if(!log) return; const entry = document.createElement('div'); entry.className = "border-b border-white/5 py-0.5 break-all"; entry.innerHTML = `> ${msg}`; log.prepend(entry); };
 
             const getS1Url = (slug) => s1Format ? s1Format.replace('{slug}', slug) : "";
             const getS2Url = (slug) => s2Format ? s2Format.replace('{slug}', slug) : "";
@@ -308,21 +344,6 @@
                 return { current: format(ps[0]), next: ps[1] ? `${nextTime} - ${format(ps[1])}` : "", isOffAir: false, isMovie: isMov, rawShow: showRaw, rawEp: epRaw, desc: ps[0]['data-description'] || "No description." };
             };
 
-            const fetchResilient = async (url, lbl, isJson=true) => {
-                if(!url) return null;
-                const enc = encodeURIComponent(url + (url.includes('?')?'&':'?') + 't=' + Date.now());
-                const proxies = [["corsproxy.io", `https://corsproxy.io/?url=${enc}`], ["allorigins", `https://api.allorigins.win/get?url=${enc}`]];
-                for (const [name, pUrl] of proxies) {
-                    try {
-                        const res = await fetch(pUrl); if (!res.ok) continue;
-                        let d = name === "allorigins" ? (await res.json()).contents : await res.text();
-                        if (isJson && typeof d === 'string') d = JSON.parse(d);
-                        if(d) return d;
-                    } catch (e) {}
-                }
-                return null;
-            };
-
             const players = {
                 'IFRAME': async (url, w, variant, logo='') => {
                     const engine = variant.startsWith('ANY_') ? variant.split('_')[1].toLowerCase() : 'clappr';
@@ -335,6 +356,7 @@
                     else { 
                         frameUrl = `${CONFIG.ANY_PLAYER_URL}?url=${encodedUrl}&player=${engine}&autoplay=1&loop=1&controls=hidden&theme=flat&logo=1&poster=${encodedLogo}&width=responsive`; 
                     }
+                    vlog(`IFRAME: ${frameUrl}`);
                     const handleFrameLoad = () => { if(s('vLoader')) s('vLoader').style.display='none'; setStatus('playing'); if (loadStartTime > 0) { s('loadTimeDisplay').innerText = `Loaded in ${((Date.now() - loadStartTime) / 1000).toFixed(2)}s`; loadStartTime = 0; } };
                     w.innerHTML = loaderHTML + `<iframe id="extPlayerFrame" src="${frameUrl}" width="100%" height="100%" frameborder="0" allow="autoplay; fullscreen"></iframe>`;
                     s('extPlayerFrame').onload = handleFrameLoad; return { type: 'iframe' };
@@ -509,6 +531,7 @@
                 const key = `${label}:${slug}`; if (resolvedCache.has(key)) return resolvedCache.get(key);
                 const b = label.startsWith('S1') ? getS1Url(slug) : getS2Url(slug);
                 if(!b) return null;
+                rlog(`Resolving: ${b.substring(0,30)}...`);
                 const r = await fetchResilient(CONFIG.RESOLVER_BASE + encodeURIComponent(b), "unshortener", false);
                 if(r) {
                     const doc = new DOMParser().parseFromString(r, 'text/html'), l = doc.querySelector('a[href*="token="], a[href*=".m3u8"]');
@@ -552,6 +575,7 @@
             });
             try {
                 if(s('ccToggle')) updateCCUI();
+                HELPERS.checkRAM();
                 vlog("Init...");
                 const activeKey = metaUrl ? `epg_${btoa(metaUrl).substring(0,12)}` : CACHE_KEY;
                 let md = null, cObj = localStorage.getItem(activeKey);
@@ -559,7 +583,6 @@
                 if(!md && metaUrl) { md=await fetchResilient(metaUrl,'Metadata'); if(md) localStorage.setItem(activeKey, JSON.stringify({ts:Date.now(),data:md})); }
                 if(md) { 
                     (Array.isArray(md)?md:(md.channels||md.data||[])).forEach(i => { const id=(i.mapping?.tvg_id||i.id||"").trim().toLowerCase(); if(id) { meta.set(id, {name:i.display_name, category:i.group_title, logos:i.logos, slug1:i.mapping?.slug1||i.slug, slug2:i.mapping?.slug2||i.slug2, color:(i.info||i.color||"").toString().toLowerCase()}); channelsMap.set(id, {site_id:id, title:i.display_name, next_programs:[]}); if(i.group_title) baseCats.add(i.group_title); } }); 
-                    // Add standard categories to the filter list
                     baseCats.add('All'); baseCats.add('Movies'); baseCats.add('Off-Air');
                     draw(); window.initFocus(); vlog(`Loaded ${channelsMap.size} chans`);
                 }
