@@ -9,7 +9,7 @@
     <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
 
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@500&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@500;700&display=swap');
         
         body { font-family: 'Inter', sans-serif; background-color: #0b0f1a; color: #f8fafc; overflow-x: hidden; }
         .mono { font-family: 'JetBrains Mono', monospace; }
@@ -20,93 +20,61 @@
         
         .player-aspect { aspect-ratio: 16 / 9; background: #000; }
 
-        .vjs-progress-control, .vjs-remaining-time, .vjs-current-time, .vjs-duration-display, .vjs-time-divider { 
-            display: none !important; 
+        /* High-Contrast Title Overlay */
+        .card-title-container {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
         }
 
-        .card-title-overlay {
-            font-size: 0.75rem;
-            font-weight: 800;
-            line-height: 1.2;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+        .title-main {
+            font-size: 0.85rem;
+            font-weight: 900;
+            line-height: 1;
             text-transform: uppercase;
+            letter-spacing: -0.03em;
+            color: #fff;
         }
 
-        .card-subtitle-overlay {
+        .title-sub {
             font-family: 'JetBrains Mono', monospace;
-            font-size: 0.6rem;
+            font-size: 0.65rem;
             font-weight: 500;
-            color: #94a3b8;
-            margin-top: 4px;
-            display: -webkit-box;
-            -webkit-line-clamp: 1;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-            letter-spacing: 0.025em;
+            color: #60a5fa;
+            letter-spacing: 0.05em;
         }
 
         .status-badge {
-            position: absolute; top: 6px; right: 6px;
-            font-size: 8px; font-weight: 900; padding: 2px 6px;
+            position: absolute; top: 8px; right: 8px;
+            font-size: 7px; font-weight: 900; padding: 2px 6px;
             border-radius: 4px; text-transform: uppercase;
             z-index: 20;
             letter-spacing: 0.05em;
         }
 
-        .network-badge {
-            position: absolute; top: 6px; left: 6px;
-            font-size: 8px; font-weight: 900; padding: 2px 6px;
-            border-radius: 4px; text-transform: uppercase;
-            z-index: 20;
-            letter-spacing: 0.05em;
-            background: rgba(37, 99, 235, 0.9);
-            color: white;
-            backdrop-filter: blur(4px);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        }
-
-        .status-checking { background: #1e293b; color: #64748b; border: 1px solid #334155; }
+        .status-pending { background: #1e293b; color: #94a3b8; border: 1px solid #334155; }
+        .status-checking { background: #2563eb; color: #fff; border: 1px solid #60a5fa; animation: pulse 1.5s infinite; }
         .status-ready { background: #064e3b; color: #34d399; border: 1px solid #065f46; }
         .status-stub { background: #450a0a; color: #f87171; border: 1px solid #7f1d1d; }
         
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+
         body:not(.show-stubs-active) .stub-card { display: none; }
-        .stub-card { opacity: 0.4; }
+        .stub-card { opacity: 0.4; filter: grayscale(1); }
         
         .global-seekbar-container {
-            height: 14px;
+            height: 10px;
             background: #1e293b;
-            border-radius: 7px;
+            border-radius: 5px;
             position: relative;
             cursor: pointer;
             overflow: hidden;
             border: 1px solid #334155;
-            transition: all 0.2s ease;
-        }
-        .global-seekbar-container:hover {
-            border-color: #475569;
-            background: #232f42;
         }
         .global-seekbar-fill {
             height: 100%;
-            background: linear-gradient(to right, #2563eb, #3b82f6);
+            background: #2563eb;
             width: 0%;
-            transition: width 0.1s linear;
-        }
-        .segment-marker {
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            width: 1px;
-            background: rgba(255, 255, 255, 0.25);
-            pointer-events: none;
-        }
-        .seg-btn.active {
-            border-color: #3b82f6;
-            background: rgba(59, 130, 246, 0.1);
         }
 
         .endpoint-bar {
@@ -114,19 +82,17 @@
             border-bottom: 1px solid #1e293b;
             padding: 4px 24px;
             font-family: 'JetBrains Mono', monospace;
-            font-size: 10px;
+            font-size: 9px;
             color: #475569;
             display: flex;
             align-items: center;
             gap: 12px;
-            overflow: hidden;
-            white-space: nowrap;
         }
     </style>
 </head>
 <body class="min-h-screen show-stubs-active">
 
-    <header class="sticky top-0 z-50 bg-slate-900/95 backdrop-blur-md border-b border-slate-800/60 shadow-xl">
+    <header class="sticky top-0 z-50 bg-slate-900/95 border-b border-slate-800/60 shadow-xl backdrop-blur-md">
         <div class="max-w-[1800px] mx-auto">
             <div class="flex items-center gap-4 p-3 px-6">
                 <div class="flex items-center gap-2 shrink-0 cursor-pointer" onclick="location.reload()">
@@ -144,34 +110,35 @@
 
                 <div class="relative group">
                     <button id="network-btn" onclick="toggleDropdown()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-full py-2 px-3 flex items-center gap-1.5 transition-all">
-                        <span class="text-[9px] font-black uppercase tracking-tight text-slate-300">Net</span>
+                        <span class="text-[9px] font-black uppercase tracking-tight text-slate-300">Channels</span>
                         <span id="network-count" class="bg-blue-600 text-[8px] px-1.5 py-0.5 rounded-md text-white font-bold">All</span>
                         <svg class="w-3 h-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                     </button>
-                    
-                    <!-- Managed width to fit full names: w-36 (144px) -->
-                    <div id="network-dropdown" class="absolute right-0 mt-2 w-36 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl hidden z-[60] overflow-hidden">
+                    <div id="network-dropdown" class="absolute right-0 mt-2 w-56 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl hidden z-[60] overflow-hidden">
                         <div class="px-2 py-2 border-b border-slate-800 flex items-center justify-around bg-slate-950/50">
-                            <button onclick="setAllStations(true)" class="text-[9px] font-black uppercase text-blue-500 hover:text-blue-400">All</button>
-                            <div class="w-px h-3 bg-slate-800"></div>
-                            <button onclick="setAllStations(false)" class="text-[9px] font-black uppercase text-slate-500 hover:text-slate-400">None</button>
+                            <button onclick="setAllStations(true)" class="text-[9px] font-black uppercase text-blue-500">Select All</button>
+                            <button onclick="setAllStations(false)" class="text-[9px] font-black uppercase text-slate-500">Clear</button>
                         </div>
-                        <div id="network-options-container" class="p-1 space-y-1 max-h-[400px] overflow-y-auto custom-scrollbar"></div>
+                        <div id="network-options-container" class="p-1 space-y-0.5 max-h-[400px] overflow-y-auto custom-scrollbar"></div>
                     </div>
                 </div>
 
-                <div class="flex items-center gap-4">
-                    <label class="hidden sm:flex items-center gap-2 cursor-pointer">
+                <div class="flex items-center gap-3">
+                    <button id="verify-btn" onclick="startVerification()" class="hidden bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-full text-[9px] font-black uppercase tracking-tighter transition-all">
+                        Verify Status
+                    </button>
+                    <div class="h-4 w-[1px] bg-slate-700"></div>
+                    <label class="flex items-center gap-2 cursor-pointer">
                         <input type="checkbox" id="stubToggle" checked onchange="toggleStubVisibility()" class="w-3.5 h-3.5 accent-blue-500">
-                        <span class="text-[10px] font-black uppercase text-slate-400">Stubs</span>
+                        <span class="text-[9px] font-black uppercase text-slate-400">Show Stubs</span>
                     </label>
-                    <button onclick="resetAndSearch()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all">Scan</button>
+                    <button onclick="resetAndSearch()" class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all">Scan</button>
                 </div>
             </div>
         </div>
         <div class="endpoint-bar">
-            <span class="text-blue-500 font-black shrink-0">QUERY_URI:</span>
-            <span id="endpoint-display" class="truncate opacity-60 italic">Waiting for search...</span>
+            <span class="text-blue-500 font-black shrink-0 uppercase">Endpoint:</span>
+            <span id="endpoint-display" class="truncate opacity-60 italic text-[9px]">Idle</span>
         </div>
     </header>
 
@@ -181,22 +148,18 @@
             <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-500/20 border-t-blue-500"></div>
         </div>
         <div id="pagination" class="mt-8 flex justify-center pb-12 hidden">
-            <button onclick="loadMore()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest">Load More Results</button>
+            <button onclick="loadMore()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-colors">Load More Results</button>
         </div>
     </main>
 
     <main id="player-view" class="fixed inset-0 z-[100] bg-slate-950/98 backdrop-blur-xl p-4 md:p-8 overflow-y-auto hidden">
         <div class="max-w-6xl mx-auto space-y-6">
             <div class="flex justify-between items-center">
-                <button onclick="showView('search')" class="group flex items-center gap-2 text-slate-400 hover:text-white transition-colors">
-                    <svg class="w-4 h-4 transition-transform group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M15 19l-7-7 7-7"></path></svg>
-                    <span class="text-[10px] font-black uppercase tracking-widest">Back to Grid</span>
+                <button onclick="showView('search')" class="flex items-center gap-2 text-slate-400 hover:text-white transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M15 19l-7-7 7-7"></path></svg>
+                    <span class="text-[10px] font-black uppercase tracking-widest">Back</span>
                 </button>
-                
-                <a id="archive-link" href="#" target="_blank" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all">
-                    <span>View Archive Page</span>
-                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
-                </a>
+                <a id="archive-link" href="#" target="_blank" class="text-[10px] font-black uppercase text-slate-500 hover:text-blue-400 transition-colors">Archive.org Original</a>
             </div>
 
             <div class="grid lg:grid-cols-12 gap-8">
@@ -204,22 +167,16 @@
                     <div id="media-container" class="rounded-2xl overflow-hidden player-aspect relative bg-black shadow-2xl border border-slate-800">
                         <video id="main-video" class="video-js vjs-big-play-centered" playsinline controls></video>
                     </div>
-
-                    <div class="space-y-2 bg-slate-900/40 p-4 rounded-2xl border border-slate-800/50">
-                        <div class="flex justify-between items-center px-1">
-                            <span class="text-[9px] font-black text-slate-500 uppercase tracking-widest">Master Timeline (Synced)</span>
-                            <span id="global-time-display" class="text-[10px] font-bold text-blue-400 mono tracking-wider">00:00:00 / 00:00:00</span>
-                        </div>
+                    <div class="bg-slate-900/40 p-4 rounded-2xl border border-slate-800/50">
+                        <div id="global-time-display" class="text-[10px] font-bold text-blue-400 mono mb-2 tracking-tight">00:00:00 / 00:00:00</div>
                         <div id="global-seekbar" class="global-seekbar-container" onclick="handleGlobalSeek(event)">
-                            <div id="global-seekbar-fill" class="global-seekbar-fill"></div>
-                            <div id="seekbar-markers" class="absolute inset-0 pointer-events-none"></div>
+                            <div id="global-seekbar-fill" class="global-seekbar-fill transition-all duration-300"></div>
                         </div>
                     </div>
                 </div>
                 <div class="lg:col-span-4 bg-slate-900/50 rounded-2xl border border-slate-800 flex flex-col overflow-hidden max-h-[600px]">
-                    <div class="p-4 border-b border-slate-800">
-                        <h2 id="p-title" class="text-sm font-black text-white leading-tight uppercase tracking-tight">Loading...</h2>
-                        <p id="p-subtitle" class="card-subtitle-overlay"></p>
+                    <div class="p-4 border-b border-slate-800 bg-slate-900/50">
+                        <h2 id="p-title" class="text-xs font-black text-white leading-tight uppercase tracking-tight">Loading Metadata...</h2>
                     </div>
                     <div id="seg-list" class="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1"></div>
                 </div>
@@ -228,34 +185,13 @@
     </main>
 
     <script>
-        const API_SEARCH = 'https://archive.org/advancedsearch.php';
-        const API_METADATA = 'https://archive.org/metadata/';
-        const DOWNLOAD_BASE = 'https://archive.org/download/';
-        const SEGMENT_LIMIT = 365; 
-        
         const CHANNEL_MAP = {
-            "CNNW": "CNN", 
-            "FOXNEWSW": "FOX NEWS", 
-            "MSNOW": "MSNBC", 
-            "CNBC": "CNBC", 
-            "BLOOMBERG": "BLOOMBERG", 
-            "FBC": "FOX BIZ",
-            "COM": "COMEDY",
-            "CSPAN": "C-SPAN 1", 
-            "CSPAN2": "C-SPAN 2", 
-            "CSPAN3": "C-SPAN 3",
-            "KNTV": "NBC", 
-            "KTVU": "FOX 2", 
-            "KPIX": "CBS", 
-            "KGO": "ABC", 
-            "KQED": "PBS"
+            "CNNW": "CNN", "FOXNEWSW": "FOX NEWS", "MSNOW": "MSNBC", "CNBC": "CNBC", "BLOOMBERG": "BLOOMBERG",
+            "FBC": "FOX BUSINESS", "COM": "COMEDY CENTRAL", "CSPAN": "C-SPAN 1", "CSPAN2": "C-SPAN 2",
+            "CSPAN3": "C-SPAN 3", "KNTV": "NBC", "KTVU": "FOX", "KPIX": "CBS", "KGO": "ABC", "KQED": "PBS"
         };
 
-        const STATIONS = [
-            "TV-CNNW", "TV-FOXNEWSW", "TV-MSNOW", "TV-CNBC", "TV-BLOOMBERG",
-            "TV-FBC", "TV-COM", "TV-CSPAN", "TV-CSPAN2", "TV-CSPAN3",
-            "TV-KNTV", "TV-KTVU", "TV-KPIX", "TV-KGO", "TV-KQED"
-        ];
+        const STATIONS = Object.keys(CHANNEL_MAP).map(k => `TV-${k}`);
         
         let state = {
             page: 1, player: null, activeId: null,
@@ -266,35 +202,20 @@
             totalDuration: 0
         };
 
-        window.onload = () => { 
-            initStationDropdown(); 
-            initPlayer(); 
-            resetAndSearch(); 
-            document.addEventListener('click', (e) => {
-                const btn = document.getElementById('network-btn');
-                const menu = document.getElementById('network-dropdown');
-                if (btn && menu && !btn.contains(e.target) && !menu.contains(e.target)) menu.classList.add('hidden');
-            });
-        };
+        window.onload = () => { initStationDropdown(); initPlayer(); resetAndSearch(); };
 
         function toggleDropdown() { document.getElementById('network-dropdown').classList.toggle('hidden'); }
 
-        function getPrettyName(technicalName) {
-            const clean = technicalName.replace('TV-', '').trim().toUpperCase();
-            return CHANNEL_MAP[clean] || clean;
-        }
-
         function initStationDropdown() {
             const container = document.getElementById('network-options-container');
-            if (!container) return;
             STATIONS.forEach(s => {
-                const labelName = getPrettyName(s);
+                const key = s.replace('TV-', '');
+                const label = CHANNEL_MAP[key];
                 const div = document.createElement('label');
-                // Stack layout for zero-truncation in narrow width
-                div.className = "flex items-center justify-between py-1.5 px-2.5 rounded-md cursor-pointer hover:bg-slate-800 transition-colors group border border-transparent hover:border-slate-700/50";
+                div.className = "flex items-center gap-3 py-2 px-3 rounded-md cursor-pointer hover:bg-slate-800 transition-colors group";
                 div.innerHTML = `
-                    <span class="text-[9px] font-black uppercase tracking-tight text-slate-500 group-hover:text-blue-400 whitespace-nowrap overflow-visible">${labelName}</span>
                     <input type="checkbox" value="${s}" checked onchange="updateNetworkSelection()" class="station-checkbox w-3.5 h-3.5 accent-blue-600 rounded">
+                    <span class="text-[10px] font-bold uppercase tracking-tight text-slate-400 group-hover:text-blue-400 flex-1">${label}</span>
                 `;
                 container.appendChild(div);
             });
@@ -308,236 +229,225 @@
 
         function updateNetworkSelection() {
             const checked = document.querySelectorAll('.station-checkbox:checked').length;
-            const countDisplay = document.getElementById('network-count');
-            if (countDisplay) {
-                if (checked === STATIONS.length) countDisplay.innerText = 'All';
-                else if (checked === 0) countDisplay.innerText = 'None';
-                else countDisplay.innerText = checked;
-            }
+            document.getElementById('network-count').innerText = (checked === STATIONS.length) ? 'All' : checked;
         }
 
         function initPlayer() {
-            state.player = videojs('main-video', { 
-                fluid: true, 
-                controls: true, 
-                preload: 'auto',
-                controlBar: {
-                    progressControl: false, 
-                    remainingTimeDisplay: false,
-                    currentTimeDisplay: false,
-                    durationDisplay: false,
-                    timeDivider: false
-                }
+            state.player = videojs('main-video', { fluid: true, controls: true });
+            state.player.on('timeupdate', () => {
+                if (!state.totalDuration) return;
+                const globalTime = state.currentStartTime + state.player.currentTime();
+                const safePercent = Math.min((globalTime / state.totalDuration) * 100, 100);
+                document.getElementById('global-seekbar-fill').style.width = `${safePercent}%`;
+                document.getElementById('global-time-display').innerText = `${formatHMS(globalTime)} / ${formatHMS(state.totalDuration)}`;
             });
-            state.player.on('timeupdate', updateGlobalProgress);
-        }
-
-        function updateGlobalProgress() {
-            if (!state.totalDuration) return;
-            const globalTime = state.currentStartTime + state.player.currentTime();
-            const safePercent = Math.min((globalTime / state.totalDuration) * 100, 100);
-            const fill = document.getElementById('global-seekbar-fill');
-            if (fill) fill.style.width = `${safePercent}%`;
-            const display = document.getElementById('global-time-display');
-            if (display) display.innerText = `${formatHMS(globalTime)} / ${formatHMS(state.totalDuration)}`;
         }
 
         function handleGlobalSeek(e) {
             if (!state.totalDuration) return;
             const rect = e.currentTarget.getBoundingClientRect();
             const clickedTime = ((e.clientX - rect.left) / rect.width) * state.totalDuration;
-            const segmentIndex = Math.floor(clickedTime / SEGMENT_LIMIT);
-            const seg = state.activeSegments[segmentIndex] || state.activeSegments[state.activeSegments.length - 1];
-            if (!seg) return;
-            updateActiveSegmentUI(segmentIndex);
-            playSegment(seg.start, seg.end, clickedTime % SEGMENT_LIMIT);
+            const segmentIndex = Math.floor(clickedTime / 365);
+            const seg = state.activeSegments[segmentIndex];
+            if (seg) playSegment(seg.start, seg.end, clickedTime % 365);
         }
-
-        function updateActiveSegmentUI(index) {
-            document.querySelectorAll('.seg-btn').forEach((b, i) => b.classList.toggle('active', i === index));
-        }
-
-        function toggleStubVisibility() { document.body.classList.toggle('show-stubs-active', document.getElementById('stubToggle').checked); }
 
         async function resetAndSearch() {
-            state.page = 1; state.validationQueue = []; 
-            const grid = document.getElementById('results-grid');
-            if (grid) grid.innerHTML = '';
+            state.page = 1; 
+            state.validationQueue = []; 
+            state.isQueueRunning = false;
+            document.getElementById('results-grid').innerHTML = '';
+            document.getElementById('verify-btn').classList.add('hidden');
             search();
         }
 
         function loadMore() { state.page++; search(); }
 
+        function transformTitle(raw) {
+            // Strip prefixes like TV-CNNW_ or FOXNEWSW_
+            let clean = raw.replace(/^TV-[A-Z0-9]+_/, '').replace(/[_-]/g, ' ');
+            
+            // Look for Date/Time patterns (e.g. 20240101 080000)
+            const dateMatch = clean.match(/(\d{4})(\d{2})(\d{2})\s+(\d{2})(\d{2})(\d{2})/);
+            if (dateMatch) {
+                const [_, y, m, d, hh, mm, ss] = dateMatch;
+                const dateStr = new Date(`${y}-${m}-${d}`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                return {
+                    main: dateStr,
+                    sub: `${hh}:${mm}:${ss} UTC`
+                };
+            }
+            
+            // Fallback for simple titles
+            return { main: clean.length > 25 ? clean.substring(0, 25) + '...' : clean, sub: 'ARCHIVE ITEM' };
+        }
+
         async function search() {
             const loader = document.getElementById('loader');
-            if (loader) loader.classList.remove('hidden');
-            const searchInput = document.getElementById('searchInput');
-            const userQuery = searchInput ? searchInput.value.trim() : '';
+            loader?.classList.remove('hidden');
             const selected = Array.from(document.querySelectorAll('.station-checkbox:checked')).map(c => c.value);
+            const userQuery = document.getElementById('searchInput').value.trim();
             
-            if (selected.length === 0) {
-                if (loader) loader.classList.add('hidden');
-                return;
-            }
-
             let q = `mediatype:movies AND (${selected.map(s => `collection:${s}`).join(" OR ")})`;
-            if (userQuery) {
-                q += ` AND (title:(${userQuery}) OR description:(${userQuery}))`;
-            }
+            if (userQuery) q += ` AND (title:(${userQuery}) OR description:(${userQuery}))`;
 
-            const params = new URLSearchParams({ 
-                q, 'fl[]': ['identifier', 'title', 'date'], 'sort[]': 'publicdate desc', rows: 40, page: state.page, output: 'json' 
-            });
-            
-            const fullUrl = `${API_SEARCH}?${params.toString()}`;
-            document.getElementById('endpoint-display').innerText = fullUrl;
+            const params = new URLSearchParams({ q, 'fl[]': ['identifier', 'title'], 'sort[]': 'publicdate desc', rows: 40, page: state.page, output: 'json' });
+            document.getElementById('endpoint-display').innerText = `https://archive.org/advancedsearch.php?${params.toString()}`;
             
             try {
-                const res = await fetch(fullUrl);
+                const res = await fetch(`https://archive.org/advancedsearch.php?${params.toString()}`);
                 const data = await res.json();
                 renderGrid(data.response.docs);
-                data.response.docs.forEach(doc => { if (!state.itemCache.has(doc.identifier)) state.validationQueue.push(doc); });
-                if (!state.isQueueRunning) processQueue();
-            } catch (e) { console.error(e); } finally { if (loader) loader.classList.add('hidden'); }
+                
+                data.response.docs.forEach(doc => {
+                    if (!state.itemCache.has(doc.identifier)) {
+                        state.validationQueue.push(doc);
+                    }
+                });
+
+                if (state.validationQueue.length > 0) {
+                    document.getElementById('verify-btn').classList.remove('hidden');
+                }
+            } catch (e) { 
+                console.error(e); 
+            } finally { 
+                loader?.classList.add('hidden'); 
+            }
+        }
+
+        function startVerification() {
+            if (state.isQueueRunning) return;
+            document.getElementById('verify-btn').classList.add('opacity-50', 'pointer-events-none');
+            document.getElementById('verify-btn').innerText = 'Verifying...';
+            processQueue();
         }
 
         async function processQueue() {
-            if (state.validationQueue.length === 0) { state.isQueueRunning = false; return; }
+            if (state.validationQueue.length === 0) { 
+                state.isQueueRunning = false; 
+                document.getElementById('verify-btn').classList.add('hidden');
+                return; 
+            }
             state.isQueueRunning = true;
             await validateItem(state.validationQueue.shift());
             setTimeout(processQueue, 50);
         }
 
         async function validateItem(doc) {
+            const badge = document.getElementById(`badge-${doc.identifier}`);
+            if (badge) {
+                badge.className = 'status-badge status-checking';
+                badge.innerText = 'checking';
+            }
+
             try {
-                const res = await fetch(`${API_METADATA}${doc.identifier}`);
+                const res = await fetch(`https://archive.org/metadata/${doc.identifier}`);
                 const data = await res.json();
                 const mp4 = (data.files || []).find(f => f.name.endsWith('.mp4') && f.source !== 'metadata' && !f.name.includes('_thumb'));
-                const card = document.getElementById(`card-${doc.identifier}`);
-                const badge = document.getElementById(`badge-${doc.identifier}`);
+                
                 if (!mp4) {
                     state.itemCache.set(doc.identifier, { status: 'stub' });
                     if (badge) { badge.className = 'status-badge status-stub'; badge.innerText = 'stub'; }
-                    if (card) card.classList.add('stub-card');
+                    document.getElementById(`card-${doc.identifier}`)?.classList.add('stub-card');
                 } else {
                     state.itemCache.set(doc.identifier, { status: 'ready', file: mp4.name, length: mp4.length });
                     if (badge) { badge.className = 'status-badge status-ready'; badge.innerText = 'ready'; }
                 }
-            } catch (e) { console.error(e); }
-        }
-
-        function parseMetadata(title) {
-            let primaryTitle = ""; let channel = ""; let dateTimeStr = ""; let extractedTimeRange = "";
-            const timeRangeRegex = /(\d{1,2}:\d{2}(?:am|pm)-\d{1,2}:\d{2}(?:am|pm)\s*[A-Z]{0,4})/i;
-            const timeMatch = title.match(timeRangeRegex);
-            if (timeMatch) extractedTimeRange = timeMatch[0].trim();
-
-            if (title.includes(" : ")) {
-                const parts = title.split(" : ");
-                if (parts.length >= 3) {
-                    primaryTitle = parts[0].trim();
-                    channel = getPrettyName(parts[1].trim());
-                    dateTimeStr = parts.slice(2).join(" : ").trim();
-                } else if (parts.length === 2) {
-                    channel = getPrettyName(parts[0].trim());
-                    const datePart = parts[1].trim();
-                    if (extractedTimeRange) {
-                        primaryTitle = extractedTimeRange;
-                        dateTimeStr = datePart.replace(new RegExp(extractedTimeRange, 'i'), '').trim();
-                    } else { primaryTitle = datePart; dateTimeStr = ""; }
-                }
-            } else {
-                 const titleUpper = title.toUpperCase();
-                 for (const s of STATIONS) {
-                    const sUpper = s.toUpperCase().replace('TV-', '');
-                    if (titleUpper.includes(sUpper)) {
-                        channel = getPrettyName(s);
-                        const idx = titleUpper.indexOf(sUpper);
-                        const post = title.substring(idx + sUpper.length).trim().replace(/^[_\-:\s]+/, "");
-                        const pre = title.substring(0, idx).trim().replace(/[_\-:\s]+$/, "").replace(/_/g, ' ');
-                        if (pre.length > 2) { primaryTitle = pre; dateTimeStr = post; } 
-                        else {
-                            if (extractedTimeRange) { primaryTitle = extractedTimeRange; dateTimeStr = post.replace(new RegExp(extractedTimeRange, 'i'), '').trim(); } 
-                            else { primaryTitle = post; }
-                        }
-                        break;
-                    }
-                }
-                if (!primaryTitle) primaryTitle = title;
+                return data;
+            } catch (e) { 
+                console.error(e); 
+                if (badge) { badge.className = 'status-badge status-pending'; badge.innerText = 'Error'; }
+                return null;
             }
-            return { showName: primaryTitle.replace(/_/g, ' '), channel, dateTime: dateTimeStr };
         }
 
         function renderGrid(items) {
             const grid = document.getElementById('results-grid');
-            if (!grid) return;
-            if (state.page === 1) grid.innerHTML = '';
             items.forEach(item => {
                 if (document.getElementById(`card-${item.identifier}`)) return;
-                const meta = parseMetadata(item.title);
+                
+                const cached = state.itemCache.get(item.identifier);
+                const statusClass = cached ? (cached.status === 'ready' ? 'status-ready' : 'status-stub') : 'status-pending';
+                const statusText = cached ? cached.status : 'Pending';
+                
+                const displayTitle = transformTitle(item.title);
+
                 const card = document.createElement('div');
                 card.id = `card-${item.identifier}`;
-                card.className = "group relative cursor-pointer overflow-hidden rounded-xl border border-slate-800 bg-slate-900 aspect-video transition-all shadow-lg";
+                card.className = `group relative cursor-pointer overflow-hidden rounded-xl border border-slate-800 bg-slate-900 aspect-video transition-all shadow-xl hover:scale-[1.02] hover:border-slate-700 ${cached?.status === 'stub' ? 'stub-card' : ''}`;
                 card.innerHTML = `
                     <img src="https://archive.org/services/img/${item.identifier}" class="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-all duration-300" loading="lazy">
-                    <div class="absolute inset-0 bg-gradient-to-t from-black/95 via-black/20 to-transparent"></div>
-                    ${meta.channel ? `<div class="network-badge">${meta.channel}</div>` : ''}
-                    <div id="badge-${item.identifier}" class="status-badge status-checking">Scan</div>
-                    <div class="absolute bottom-0 left-0 right-0 p-3 z-10">
-                        <h4 class="card-title-overlay text-white uppercase tracking-tight">${meta.showName}</h4>
-                        <p class="card-subtitle-overlay">${meta.dateTime}</p>
+                    <div id="badge-${item.identifier}" class="status-badge ${statusClass}">${statusText}</div>
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent pointer-events-none"></div>
+                    <div class="absolute bottom-0 left-0 right-0 p-3 z-10 card-title-container">
+                        <span class="title-sub uppercase">${displayTitle.sub}</span>
+                        <h4 class="title-main">${displayTitle.main}</h4>
                     </div>
                 `;
-                card.onclick = () => {
-                    const info = state.itemCache.get(item.identifier);
-                    if (info?.status === 'ready') loadPlayer(item);
-                    else window.open(`https://archive.org/details/${item.identifier}`, '_blank');
+                card.onclick = async () => {
+                    const cachedData = state.itemCache.get(item.identifier);
+                    if (cachedData?.status === 'stub') {
+                        window.open(`https://archive.org/details/${item.identifier}`, '_blank');
+                    } else if (cachedData?.status === 'ready') {
+                        loadPlayer(item);
+                    } else {
+                        const badge = document.getElementById(`badge-${item.identifier}`);
+                        if (badge) badge.innerText = 'Loading...';
+                        const data = await validateItem(item);
+                        if (data && state.itemCache.get(item.identifier)?.status === 'ready') {
+                            loadPlayer(item);
+                        } else {
+                            window.open(`https://archive.org/details/${item.identifier}`, '_blank');
+                        }
+                    }
                 };
                 grid.appendChild(card);
             });
-            const pag = document.getElementById('pagination');
-            if (pag) pag.classList.toggle('hidden', items.length < 30);
+            document.getElementById('pagination').classList.toggle('hidden', items.length < 30);
         }
 
-        async function loadPlayer(item) {
+        function loadPlayer(item) {
             state.activeId = item.identifier;
             showView('player');
-            document.getElementById('archive-link').href = `https://archive.org/details/${item.identifier}`;
-            const meta = parseMetadata(item.title);
-            document.getElementById('p-title').innerText = meta.showName;
-            document.getElementById('p-subtitle').innerText = `${meta.channel} • ${meta.dateTime}`;
             const info = state.itemCache.get(item.identifier);
             state.totalDuration = parseInt(info.length) || 3600;
+            document.getElementById('p-title').innerText = item.title;
+            document.getElementById('archive-link').href = `https://archive.org/details/${item.identifier}`;
+            
             const list = document.getElementById('seg-list');
-            const markers = document.getElementById('seekbar-markers');
-            list.innerHTML = ''; markers.innerHTML = '';
+            list.innerHTML = '';
             state.activeSegments = [];
-            for (let i = 0; i < state.totalDuration; i += SEGMENT_LIMIT) {
-                const start = i, end = Math.min(i + SEGMENT_LIMIT, state.totalDuration);
+            for (let i = 0; i < state.totalDuration; i += 365) {
+                const start = i, end = Math.min(i + 365, state.totalDuration);
                 const idx = state.activeSegments.length;
                 state.activeSegments.push({ start, end });
                 const btn = document.createElement('button');
-                btn.className = "seg-btn w-full text-left p-3 rounded-xl bg-slate-800/30 border border-slate-800 hover:border-blue-500/50 flex justify-between items-center transition-all group";
-                if (i === 0) btn.classList.add('active');
-                btn.innerHTML = `<span class="text-[10px] font-black text-slate-400 group-hover:text-white">PART ${idx + 1}</span><span class="mono text-[9px] text-slate-600 group-hover:text-blue-400">${formatHMS(start)}</span>`;
-                btn.onclick = () => { updateActiveSegmentUI(idx); playSegment(start, end); };
+                btn.className = "seg-btn w-full text-left p-3 rounded-xl bg-slate-800/30 border border-slate-800 flex justify-between items-center transition-all group hover:bg-slate-700/50";
+                btn.innerHTML = `
+                    <div class="flex flex-col">
+                        <span class="text-[9px] font-black text-slate-500 group-hover:text-blue-400 uppercase tracking-tighter">Part ${idx + 1}</span>
+                        <span class="mono text-[10px] text-slate-400">${formatHMS(start)}</span>
+                    </div>
+                    <svg class="w-3 h-3 text-slate-600 group-hover:text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M4.5 3a.5.5 0 00-.5.5v13a.5.5 0 00.8.4l10-6.5a.5.5 0 000-.8l-10-6.5a.5.5 0 00-.3-.1z"></path></svg>
+                `;
+                btn.onclick = () => playSegment(start, end);
                 list.appendChild(btn);
-                const m = document.createElement('div');
-                m.className = 'segment-marker';
-                m.style.left = `${(i / state.totalDuration) * 100}%`;
-                markers.appendChild(m);
             }
-            playSegment(0, Math.min(SEGMENT_LIMIT, state.totalDuration));
+            playSegment(0, Math.min(365, state.totalDuration));
         }
 
         function playSegment(start, end, seekTo = 0) {
             const info = state.itemCache.get(state.activeId);
-            if (!info || !state.player) return;
             state.currentStartTime = start;
-            const url = `${DOWNLOAD_BASE}${state.activeId}/${encodeURIComponent(info.file)}?start=${start}&end=${end}`;
+            const url = `https://archive.org/download/${state.activeId}/${encodeURIComponent(info.file)}?start=${start}&end=${end}`;
             state.player.src({ src: url, type: 'video/mp4' });
             state.player.currentTime(seekTo);
             state.player.play();
+            
+            document.querySelectorAll('.seg-btn').forEach((b, idx) => {
+                b.classList.toggle('border-blue-600', idx === state.activeSegments.findIndex(s => s.start === start));
+                b.classList.toggle('bg-blue-600/10', idx === state.activeSegments.findIndex(s => s.start === start));
+            });
         }
 
         function showView(v) {
@@ -549,6 +459,10 @@
         function formatHMS(s) {
             const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = Math.floor(s % 60);
             return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+        }
+        
+        function toggleStubVisibility() { 
+            document.body.classList.toggle('show-stubs-active', document.getElementById('stubToggle').checked); 
         }
     </script>
 </body>
