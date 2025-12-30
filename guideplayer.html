@@ -176,6 +176,7 @@
 
     <!-- LOGIC -->
     <script>
+        // --- API FALLBACK CONFIGURATION ---
 
 
         window.onerror = (msg) => { console.error(msg); return true; };
@@ -197,13 +198,9 @@
                     VOL: '<i class="fa-solid fa-volume-high text-[9px]"></i>'
                 },
                 RESOLVER_BASE: 'https://www.whatsmydns.net/url-unshortener?q=',
-                ENGINES: {
-                    S1A: 'ANY_CLAPPR',
-                    S2: 'NATIVE'
-                },
+                ENGINES: { S1A: 'ANY_CLAPPR', S2: 'NATIVE' },
                 SOURCES: { S1: 'S1', S1A: 'S1a', S2: 'S2', S2A: 'S2a' },
                 ANY_PLAYER_URL: 'https://anym3u8player.com/ultimate-player-generator/player.php',
-                // Lazy-load resource mapping
                 RESOURCES: {
                     'HLS.JS': ['https://cdn.jsdelivr.net/npm/hls.js@latest'],
                     'VIDEOJS': ['https://vjs.zencdn.net/8.10.0/video-js.css', 'https://vjs.zencdn.net/8.10.0/video.min.js'],
@@ -217,15 +214,10 @@
             };
 
             const HELPERS = {
-                getInitials: (name) => {
-                    const initials = (name||"").match(/\b\w/g)?.slice(0,3).join('').toUpperCase();
-                    return initials || (name||"").substring(0,3).toUpperCase();
-                },
+                getInitials: (name) => (name||"").match(/\b\w/g)?.slice(0,3).join('').toUpperCase() || (name||"").substring(0,3).toUpperCase(),
                 getLogoHtml: (logos, name) => {
                     const ini = HELPERS.getInitials(name);
-                    return logos?.[0] 
-                        ? `<img src="${logos[0]}" loading="lazy" class="w-full h-full object-contain" onerror="window.handleLogoError(this, '${ini}')">`
-                        : `<span class="text-xs font-bold">${ini}</span>`;
+                    return logos?.[0] ? `<img src="${logos[0]}" loading="lazy" class="w-full h-full object-contain" onerror="window.handleLogoError(this, '${ini}')">` : `<span class="text-xs font-bold">${ini}</span>`;
                 },
                 loadDependency: (urls) => {
                     if (!urls) return Promise.resolve();
@@ -234,17 +226,12 @@
                         return new Promise((resolve, reject) => {
                             let el;
                             if (url.endsWith('.css')) {
-                                el = document.createElement('link');
-                                el.rel = 'stylesheet';
-                                el.href = url;
+                                el = document.createElement('link'); el.rel = 'stylesheet'; el.href = url;
                             } else {
-                                el = document.createElement('script');
-                                el.src = url;
-                                el.async = true;
-                                el.crossOrigin = "anonymous";
+                                el = document.createElement('script'); el.src = url; el.async = true; el.crossOrigin = "anonymous";
                             }
                             el.onload = () => { CONFIG.LOADED_RESOURCES.add(url); resolve(); };
-                            el.onerror = () => { vlog(`Failed to load resource: ${url}`); reject(); };
+                            el.onerror = () => { vlog(`<span class="text-red-400">Failed dep: ${url}</span>`); reject(); };
                             document.head.appendChild(el);
                         });
                     }));
@@ -269,11 +256,11 @@
             const setStatus = (txt) => { const el = s('lastEvent'); if (el) el.innerText = txt ? txt.toUpperCase() : "IDLE"; };
             const vlog = (msg) => {
                 const log = s('bootLog'); if(!log) return;
-                const entry = document.createElement('div'); entry.className = "border-b border-white/5 py-0.5";
+                const entry = document.createElement('div'); entry.className = "border-b border-white/5 py-0.5 break-all";
                 entry.innerHTML = `<span class="opacity-40">[${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'})}]</span> ${msg}`;
                 log.prepend(entry);
             };
-            const rlog = (msg) => { const log = s('resolutionLog'); if(!log) return; const entry = document.createElement('div'); entry.innerHTML = `> ${msg}`; log.prepend(entry); };
+            const rlog = (msg) => { const log = s('resolutionLog'); if(!log) return; const entry = document.createElement('div'); entry.className = "border-b border-white/5 py-0.5 break-all"; entry.innerHTML = `> ${msg}`; log.prepend(entry); };
 
             const getS1Url = (slug) => s1Format ? s1Format.replace('{slug}', slug) : "";
             const getS2Url = (slug) => s2Format ? s2Format.replace('{slug}', slug) : "";
@@ -289,21 +276,21 @@
                 if (btn) { btn.classList.toggle('bg-brand-600', isHidden); btn.classList.toggle('text-white', isHidden); }
                 if(!overlay.classList.contains('hidden')) {
                     if(statsInterval) clearInterval(statsInterval);
-                    statsInterval = setInterval(updateStats, 1000); vlog("Diagnostic view enabled");
+                    statsInterval = setInterval(updateStats, 1000); vlog("Verbose debugger enabled");
                 } else { clearInterval(statsInterval); }
             };
 
             const updateStats = () => {
                 const content = s('statsContent'); if(!content) return;
-                let html = `ENGINE: ${currentEngine}<br>URL: ${currentStreamUrl ? currentStreamUrl.split('?')[0].split('/').pop() : 'NONE'}<br>`;
+                let html = `ENG: ${currentEngine}<br>URL: ${currentStreamUrl ? currentStreamUrl.split('/').pop().split('?')[0] : 'NONE'}<br>`;
                 if(currentPlayer) {
                     const v = currentPlayer.tagName === 'VIDEO' ? currentPlayer : (currentPlayer.video || document.querySelector('video'));
                     if(v) {
                         html += `RES: ${v.videoWidth}x${v.videoHeight}<br>VOL: ${Math.round(v.volume * 100)}% ${v.muted ? '(MUTED)' : ''}<br>`;
-                        html += `BUFFER: ${v.buffered.length ? (v.buffered.end(0) - v.currentTime).toFixed(2) + 's' : '0s'}<br>`;
+                        html += `BUF: ${v.buffered.length ? (v.buffered.end(0) - v.currentTime).toFixed(2) + 's' : '0s'}<br>`;
                     }
                 }
-                if(currentEngine === 'HLS.JS' && hlsInstance) { html += `BITRATE: ${(hlsInstance.levels[hlsInstance.currentLevel]?.bitrate / 1000000).toFixed(2)} Mbps<br>`; }
+                if(currentEngine === 'HLS.JS' && hlsInstance) { html += `BIT: ${(hlsInstance.levels[hlsInstance.currentLevel]?.bitrate / 1000000).toFixed(2)} Mbps<br>`; }
                 content.innerHTML = html;
             };
 
@@ -323,16 +310,22 @@
 
             const fetchResilient = async (url, lbl, isJson=true) => {
                 if(!url) return null;
+                vlog(`Fetching ${lbl}: ${url.substring(0,30)}...`);
                 const enc = encodeURIComponent(url + (url.includes('?')?'&':'?') + 't=' + Date.now());
                 const proxies = [["corsproxy.io", `https://corsproxy.io/?url=${enc}`], ["allorigins", `https://api.allorigins.win/get?url=${enc}`]];
                 for (const [name, pUrl] of proxies) {
                     try {
-                        const res = await fetch(pUrl); if (!res.ok) continue;
+                        vlog(`Via ${name}...`);
+                        const res = await fetch(pUrl); 
+                        if (!res.ok) { vlog(`HTTP ${res.status} via ${name}`); continue; }
                         let d = name === "allorigins" ? (await res.json()).contents : await res.text();
                         if (isJson && typeof d === 'string') d = JSON.parse(d);
-                        if(d) return d;
-                    } catch (e) {}
+                        if(d) { vlog(`Success: ${lbl}`); return d; }
+                    } catch (e) { vlog(`Err: ${name}`); }
                 }
+                vlog(`<span class="text-red-400">Failed to fetch ${lbl}</span>`);
+                // Auto-open debug if metadata fails
+                if(lbl === 'Metadata') window.toggleStats();
                 return null;
             };
 
@@ -343,13 +336,12 @@
                     let frameUrl = "";
                     if (variant === 'DEBUG') { frameUrl = `https://galeksandrp.github.io/hls.js/demo/?src=${encodedUrl}&enableStreaming=true&autoRecoverError=true`; }
                     else if (variant === 'STAND_ALONE') { 
-                        // Any Player Mode: Uses clappr by default
                         frameUrl = `${CONFIG.ANY_PLAYER_URL}?url=${encodedUrl}&player=clappr&autoplay=1&loop=1&controls=hidden&width=responsive`; 
                     }
                     else { 
-                        // Any:Mode: Uses specific engine
                         frameUrl = `${CONFIG.ANY_PLAYER_URL}?url=${encodedUrl}&player=${engine}&autoplay=1&loop=1&controls=hidden&theme=flat&logo=1&poster=${encodedLogo}&width=responsive`; 
                     }
+                    vlog(`IFRAME: ${frameUrl}`);
                     const handleFrameLoad = () => { if(s('vLoader')) s('vLoader').style.display='none'; setStatus('playing'); if (loadStartTime > 0) { s('loadTimeDisplay').innerText = `Loaded in ${((Date.now() - loadStartTime) / 1000).toFixed(2)}s`; loadStartTime = 0; } };
                     w.innerHTML = loaderHTML + `<iframe id="extPlayerFrame" src="${frameUrl}" width="100%" height="100%" frameborder="0" allow="autoplay; fullscreen"></iframe>`;
                     s('extPlayerFrame').onload = handleFrameLoad; return { type: 'iframe' };
@@ -413,7 +405,7 @@
                 if(eng) setEngine(eng);
                 s('playerContainer').classList.remove('hidden');
                 const body=s('pd-desc'), logoEl=s('playingLogo');
-                body.innerText = ""; s('loadTimeDisplay').innerText = ""; vlog(`Switching to ${name} (${dTitle})`); setStatus('loading'); recoveryAttempts = 0;
+                body.innerText = ""; s('loadTimeDisplay').innerText = ""; vlog(`Play: ${name} (${dTitle})`); setStatus('loading'); recoveryAttempts = 0;
                 
                 if(extra.sid && meta.has(extra.sid)) {
                     const m = meta.get(extra.sid);
@@ -458,6 +450,7 @@
             const loadStream = async (url, logoUrl='') => { 
                 destroyActivePlayer(); currentStreamUrl = url; hasCaptions = false; updateCCUI(); loadStartTime = Date.now(); s('loadTimeDisplay').innerText = ""; 
                 const eng = currentEngine; 
+                vlog(`Loading: ${eng} -> ${url}`);
                 if(isHostedEngine(eng)) currentPlayer = await players.IFRAME(url, s('videoWrapper'), eng, logoUrl); 
                 else if(players[eng]) currentPlayer = await players[eng](url, s('videoWrapper')); 
             };
@@ -523,6 +516,7 @@
                 const key = `${label}:${slug}`; if (resolvedCache.has(key)) return resolvedCache.get(key);
                 const b = label.startsWith('S1') ? getS1Url(slug) : getS2Url(slug);
                 if(!b) return null;
+                rlog(`Resolving: ${b.substring(0,30)}...`);
                 const r = await fetchResilient(CONFIG.RESOLVER_BASE + encodeURIComponent(b), "unshortener", false);
                 if(r) {
                     const doc = new DOMParser().parseFromString(r, 'text/html'), l = doc.querySelector('a[href*="token="], a[href*=".m3u8"]');
@@ -566,21 +560,21 @@
             });
             try {
                 if(s('ccToggle')) updateCCUI();
-                vlog("Booting...");
+                vlog("Init...");
                 const activeKey = metaUrl ? `epg_${btoa(metaUrl).substring(0,12)}` : CACHE_KEY;
                 let md = null, cObj = localStorage.getItem(activeKey);
                 if(cObj) { const p=JSON.parse(cObj); if(Date.now()-p.ts<CACHE_TTL) md=p.data; }
                 if(!md && metaUrl) { md=await fetchResilient(metaUrl,'Metadata'); if(md) localStorage.setItem(activeKey, JSON.stringify({ts:Date.now(),data:md})); }
                 if(md) { 
                     (Array.isArray(md)?md:(md.channels||md.data||[])).forEach(i => { const id=(i.mapping?.tvg_id||i.id||"").trim().toLowerCase(); if(id) { meta.set(id, {name:i.display_name, category:i.group_title, logos:i.logos, slug1:i.mapping?.slug1||i.slug, slug2:i.mapping?.slug2||i.slug2, color:(i.info||i.color||"").toString().toLowerCase()}); channelsMap.set(id, {site_id:id, title:i.display_name, next_programs:[]}); if(i.group_title) baseCats.add(i.group_title); } }); 
-                    draw(); window.initFocus();
+                    draw(); window.initFocus(); vlog(`Loaded ${channelsMap.size} chans`);
                 }
                 if (scheduleUrl) {
                     const sc = await fetchResilient(scheduleUrl,'Schedule');
-                    if(sc) { scheduleLoaded=true; (Array.isArray(sc)?sc:(sc.channels||[])).forEach(c => { const id=(c.site_id||"").trim().toLowerCase(); if(channelsMap.has(id)) channelsMap.get(id).next_programs=c.next_programs; else channelsMap.set(id,c); }); draw(); setInterval(draw, 60000); }
+                    if(sc) { scheduleLoaded=true; (Array.isArray(sc)?sc:(sc.channels||[])).forEach(c => { const id=(c.site_id||"").trim().toLowerCase(); if(channelsMap.has(id)) channelsMap.get(id).next_programs=c.next_programs; else channelsMap.set(id,c); }); draw(); setInterval(draw, 60000); vlog("Schedule updated"); }
                 }
-                vlog("Ready."); rlog("Ready.");
-            } catch(e) { vlog("Error during boot."); console.error(e); }
+                vlog("Ready."); rlog("System Ready.");
+            } catch(e) { vlog("Boot Error: " + e.message); console.error(e); }
         })();
     </script>
 </body>
