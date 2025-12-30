@@ -1,0 +1,252 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  Monitor, 
+  Cpu, 
+  Globe, 
+  Wifi, 
+  Layers, 
+  Battery, 
+  Smartphone, 
+  Maximize, 
+  Clock,
+  HardDrive,
+  CheckCircle2,
+  XCircle,
+  Activity
+} from 'lucide-react';
+
+const App = () => {
+  const [data, setData] = useState({});
+  const [loading, setLoading] = useState(true);
+
+  const getBatteryInfo = async () => {
+    if ('getBattery' in navigator) {
+      try {
+        const battery = await navigator.getBattery();
+        return {
+          level: `${Math.round(battery.level * 100)}%`,
+          charging: battery.charging ? 'Yes' : 'No',
+          chargingTime: battery.chargingTime === Infinity ? 'N/A' : `${battery.chargingTime}s`,
+          dischargingTime: battery.dischargingTime === Infinity ? 'N/A' : `${battery.dischargingTime}s`,
+        };
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  };
+
+  const getStorageInfo = async () => {
+    if (navigator.storage && navigator.storage.estimate) {
+      try {
+        const estimate = await navigator.storage.estimate();
+        return {
+          quota: `${(estimate.quota / (1024 * 1024 * 1024)).toFixed(2)} GB`,
+          usage: `${(estimate.usage / (1024 * 1024)).toFixed(2)} MB`,
+        };
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  };
+
+  const getNetworkInfo = () => {
+    const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    if (conn) {
+      return {
+        type: conn.effectiveType || 'N/A',
+        downlink: `${conn.downlink} Mbps`,
+        rtt: `${conn.rtt} ms`,
+        saveData: conn.saveData ? 'Enabled' : 'Disabled',
+      };
+    }
+    return null;
+  };
+
+  const getWebGLExtensions = () => {
+    try {
+      const canvas = document.createElement('canvas');
+      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      if (!gl) return null;
+      const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+      return {
+        vendor: debugInfo ? gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL) : 'Unknown',
+        renderer: debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : 'Unknown',
+        version: gl.getParameter(gl.VERSION),
+        shadingLanguage: gl.getParameter(gl.SHADING_LANGUAGE_VERSION),
+      };
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const refreshData = async () => {
+    setLoading(true);
+    
+    const battery = await getBatteryInfo();
+    const storage = await getStorageInfo();
+    const network = getNetworkInfo();
+    const webgl = getWebGLExtensions();
+
+    const info = {
+      browser: {
+        title: "Browser & Engine",
+        icon: <Globe className="w-5 h-5 text-blue-500" />,
+        items: [
+          { label: "User Agent", value: navigator.userAgent },
+          { label: "Vendor", value: navigator.vendor },
+          { label: "Language", value: navigator.language },
+          { label: "Cookies Enabled", value: navigator.cookieEnabled ? "Yes" : "No", status: navigator.cookieEnabled },
+          { label: "Online Status", value: navigator.onLine ? "Connected" : "Disconnected", status: navigator.onLine },
+          { label: "PDF Viewer Enabled", value: navigator.pdfViewerEnabled ? "Yes" : "No" },
+        ]
+      },
+      screen: {
+        title: "Display & Graphics",
+        icon: <Monitor className="w-5 h-5 text-purple-500" />,
+        items: [
+          { label: "Screen Resolution", value: `${window.screen.width} x ${window.screen.height}` },
+          { label: "Viewport Size", value: `${window.innerWidth} x ${window.innerHeight}` },
+          { label: "Pixel Ratio", value: window.devicePixelRatio },
+          { label: "Color Depth", value: `${window.screen.colorDepth}-bit` },
+          { label: "Orientation", value: window.screen.orientation?.type || 'N/A' },
+          { label: "GPU Vendor", value: webgl?.vendor || 'N/A' },
+          { label: "GPU Renderer", value: webgl?.renderer || 'N/A' },
+        ]
+      },
+      hardware: {
+        title: "Hardware Resources",
+        icon: <Cpu className="w-5 h-5 text-red-500" />,
+        items: [
+          { label: "Logical Processors", value: navigator.hardwareConcurrency || 'Unknown' },
+          { label: "Device Memory", value: navigator.deviceMemory ? `${navigator.deviceMemory} GB (Approx)` : 'Unknown' },
+          { label: "Max Touch Points", value: navigator.maxTouchPoints },
+          { label: "Platform", value: navigator.platform },
+        ]
+      },
+      environment: {
+        title: "System Context",
+        icon: <Clock className="w-5 h-5 text-emerald-500" />,
+        items: [
+          { label: "Timezone", value: Intl.DateTimeFormat().resolvedOptions().timeZone },
+          { label: "Locale", value: Intl.DateTimeFormat().resolvedOptions().locale },
+          { label: "Calendar", value: Intl.DateTimeFormat().resolvedOptions().calendar },
+          { label: "Reduced Motion", value: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'Yes' : 'No' },
+          { label: "Dark Mode Preferred", value: window.matchMedia('(prefers-color-scheme: dark)').matches ? 'Yes' : 'No' },
+        ]
+      }
+    };
+
+    if (battery) {
+      info.battery = {
+        title: "Power Status",
+        icon: <Battery className="w-5 h-5 text-yellow-500" />,
+        items: [
+          { label: "Battery Level", value: battery.level },
+          { label: "Is Charging", value: battery.charging },
+          { label: "Charging Time", value: battery.chargingTime },
+        ]
+      };
+    }
+
+    if (network) {
+      info.network = {
+        title: "Network Condition",
+        icon: <Wifi className="w-5 h-5 text-indigo-500" />,
+        items: [
+          { label: "Effective Type", value: network.type },
+          { label: "Downlink", value: network.downlink },
+          { label: "Round Trip Time", value: network.rtt },
+          { label: "Save Data Mode", value: network.saveData },
+        ]
+      };
+    }
+
+    if (storage) {
+      info.storage = {
+        title: "Storage Quota",
+        icon: <HardDrive className="w-5 h-5 text-orange-500" />,
+        items: [
+          { label: "Estimated Quota", value: storage.quota },
+          { label: "Current Usage", value: storage.usage },
+        ]
+      };
+    }
+
+    setData(info);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    refreshData();
+    window.addEventListener('resize', refreshData);
+    return () => window.removeEventListener('resize', refreshData);
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans p-4 md:p-8">
+      <div className="max-w-6xl mx-auto">
+        {/* Header */}
+        <header className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
+              <Activity className="text-blue-600" />
+              Environment Auditor
+            </h1>
+            <p className="text-slate-500 mt-1">Detailed hardware and browser capability inspection tool.</p>
+          </div>
+          <button 
+            onClick={refreshData}
+            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-all shadow-md active:scale-95"
+          >
+            Refresh Data
+          </button>
+        </header>
+
+        {loading ? (
+          <div className="flex items-center justify-center h-64">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {Object.entries(data).map(([key, section]) => (
+              <div key={key} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col">
+                <div className="bg-slate-50 px-5 py-4 border-b border-slate-200 flex items-center gap-3">
+                  {section.icon}
+                  <h2 className="font-semibold text-slate-700">{section.title}</h2>
+                </div>
+                <div className="p-5 flex-1 space-y-4">
+                  {section.items.map((item, idx) => (
+                    <div key={idx} className="group">
+                      <div className="flex justify-between items-start mb-1">
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-400 group-hover:text-slate-600 transition-colors">
+                          {item.label}
+                        </span>
+                        {item.status !== undefined && (
+                          item.status ? 
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> : 
+                            <XCircle className="w-3.5 h-3.5 text-red-500" />
+                        )}
+                      </div>
+                      <div className="text-sm font-medium text-slate-800 break-all bg-slate-50/50 p-2 rounded border border-transparent group-hover:border-slate-100 group-hover:bg-slate-50 transition-all">
+                        {item.value}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <footer className="mt-12 text-center text-slate-400 text-xs border-t border-slate-200 pt-6">
+          <p>This application does not transmit or store any data. It simply probes your browser's APIs for inspection.</p>
+          <p className="mt-1 italic">Note: Some hardware data (like Memory) may be rounded to protect privacy (Anti-Fingerprinting).</p>
+        </footer>
+      </div>
+    </div>
+  );
+};
+
+export default App;
