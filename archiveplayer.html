@@ -57,8 +57,10 @@
     <nav class="sticky top-0 z-40 w-full bg-slate-900/95 backdrop-blur border-b border-slate-800 shadow-lg h-10">
         <div class="w-full px-2 h-full flex items-center gap-3">
             <div id="filterMenu" class="flex-1 flex items-center gap-2 overflow-x-auto hide-scroll py-1">
+                <!-- Populated by JS -->
                 <div class="text-[10px] text-slate-500 italic px-2">Loading...</div>
             </div>
+            
             <div class="flex-shrink-0 flex items-center gap-2 border-l border-slate-800 pl-2">
                 <button id="searchToggle" onclick="window.toggleSearch()" class="nav-item p-1 text-slate-400 hover:text-white transition-colors rounded">
                     <i class="fa-solid fa-magnifying-glass text-xs"></i>
@@ -74,6 +76,8 @@
 
     <!-- Main Content -->
     <main class="flex-grow w-full px-1 md:px-4 py-2 flex flex-row items-start gap-1 md:gap-2 overflow-hidden">
+
+        <!-- Left Column: Channel List -->
         <div class="flex-1 min-w-0 flex flex-col gap-3 w-full h-full order-1 overflow-y-auto hide-scroll pb-16">
             <div id="list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-2">
                  <div class="flex items-center justify-center p-12 text-slate-600 col-span-full">
@@ -83,8 +87,11 @@
             </div>
         </div>
 
+        <!-- Player Section -->
         <div id="playerContainer" class="hidden w-[14rem] sm:w-[20rem] lg:w-[22rem] xl:w-[26rem] flex-shrink-0 sticky top-12 animate-fade-in mb-2 transition-all duration-300 max-h-[400px] overflow-y-auto hide-scroll order-2">
             <div class="bg-black/40 backdrop-blur rounded-xl overflow-hidden border border-slate-800/50 shadow-2xl">
+                
+                <!-- Video Container -->
                 <div class="relative w-full aspect-video bg-black group shrink-0">
                     <div id="videoWrapper" class="w-full h-full relative">
                         <div id="vLoader" class="absolute inset-0 flex items-center justify-center bg-black z-50 text-white font-bold tracking-widest pointer-events-none">
@@ -94,6 +101,7 @@
                             </div>
                         </div>
                     </div>
+                    <!-- Stats Overlay -->
                     <div id="statsOverlay" class="hidden absolute top-2 left-2 z-50 bg-black/60 p-2 rounded text-[10px] font-mono text-emerald-400 border border-emerald-500/30">
                         <div id="statsContent"></div>
                     </div>
@@ -102,7 +110,9 @@
                     </button>
                 </div>
 
+                <!-- Info & Controls Panel -->
                 <div class="px-3 py-2 bg-slate-900/95 border-t border-slate-800/50">
+                    <!-- Title Row -->
                     <div class="flex items-start gap-3 mb-2">
                         <div id="playingLogo" class="w-10 h-7 bg-slate-900 rounded flex items-center justify-center overflow-hidden border border-slate-800 shrink-0 hidden p-1"></div>
                         <div class="min-w-0 flex-1">
@@ -114,14 +124,21 @@
                     </div>
 
                     <div class="block">
+                        <!-- Action Block (Floated Right) -->
                         <div class="float-right ml-3 mb-1.5 flex flex-col items-end gap-1.5 shrink-0">
+                            <!-- Controls Row -->
                             <div class="flex flex-wrap items-center justify-end gap-1.5">
+                                <!-- Engine -->
                                 <select id="playerEngineSelect" onchange="window.changeEngine(this.value)" class="nav-item w-16 bg-slate-800 text-[9px] uppercase font-bold text-slate-400 border border-slate-700/50 rounded px-1 py-0.5 focus:outline-none focus:border-slate-500 truncate appearance-none text-center hover:bg-slate-700 cursor-pointer h-6">
                                     <optgroup label="Local"><option value="NATIVE" selected="">Native</option><option value="HLS.JS">HLS.js</option><option value="VIDEOJS">VideoJS</option><option value="CLAPPR">Clappr</option><option value="ARTPLAYER">Art</option><option value="SHAKA">Shaka</option><option value="DPLAYER">DPlayer</option></optgroup>
                                     <optgroup label="Hosted"><option value="STAND_ALONE">Proxy</option><option value="ANY_CLAPPR">Any:Clp</option><option value="ANY_VIDEOJS">Any:Vjs</option><option value="ANY_JWPLAYER">Any:Jw</option><option value="ANY_FLOWPLAYER">Any:Flw</option><option value="ANY_MEDIAELEMENT">Any:Mel</option><option value="ANY_HLSJS">Any:Hls</option><option value="DEBUG">Debug</option></optgroup>
                                 </select>
+
+                                <!-- Source Selector -->
                                 <select id="sourceSelect" onchange="window.handleSourceChange(this.value)" class="nav-item w-14 bg-slate-800 text-[9px] uppercase font-bold text-slate-400 border border-slate-700/50 rounded px-1 py-0.5 focus:outline-none focus:border-slate-500 truncate appearance-none text-center hover:bg-slate-700 cursor-pointer h-6 hidden">
                                 </select>
+
+                                <!-- Playback Group (Main) -->
                                 <div class="flex items-center bg-slate-800 rounded p-0.5 border border-slate-700/50 h-6">
                                     <div id="mainControls" class="flex items-center">
                                         <button onclick="window.toggleCC()" class="cc-toggle-btn nav-item px-1.5 h-full hover:bg-slate-700 rounded text-slate-300 hover:text-white opacity-50 cursor-not-allowed flex items-center justify-center" title="Captions"><i class="fa-regular fa-closed-captioning text-[9px]"></i></button>
@@ -130,6 +147,8 @@
                                     </div>
                                     <button id="fsBtn" onclick="window.toggleFullscreen()" class="nav-item px-1.5 h-full hover:bg-slate-700 rounded text-slate-300 hover:text-white flex items-center justify-center border-l border-slate-700/50 ml-0.5" title="Fullscreen"><i class="fa-solid fa-expand text-[9px]"></i></button>
                                 </div>
+
+                                <!-- Utility Group -->
                                 <div class="flex items-center gap-1 h-6">
                                     <button id="logToggle" onclick="window.toggleStats()" class="nav-item w-6 h-full bg-slate-800 border border-slate-700/50 rounded hover:bg-slate-700 text-slate-300 flex items-center justify-center" title="System Logs & Stats"><i class="fa-solid fa-terminal text-[9px]"></i></button>
                                     <button onclick="window.reloadCurrent()" class="nav-item w-6 h-full bg-slate-800 border border-slate-700/50 rounded hover:bg-slate-700 text-slate-300 flex items-center justify-center" title="Reload"><i class="fa-solid fa-rotate-right text-[9px]"></i></button>
@@ -187,7 +206,13 @@
     <!-- LOGIC -->
     <script>
         // --- API FALLBACK CONFIGURATION (Edit or clear these to test the full REST API) ---
-------------------------
+        const API_FALLBACKS = {
+            metadata_url: 'https://pastebin.com/raw/pPCVY4Vv',
+            schedule_url: 'https://tvpass.org/tv_schedules/channels_tv_schedule.json',
+            s1_format: 'https://fl1.moveonjoy.com/{slug}/index.m3u8',
+            s2_format: 'https://tvpass.org/live/{slug}/sd'
+        };
+        // --------------------------------------------------------------------------------
 
         window.onerror = (msg) => { console.error(msg); return true; };
 
@@ -212,7 +237,9 @@
                     S1A: 'ANY_CLAPPR',
                     S2: 'NATIVE'
                 },
-                SOURCES: { S1: 'S1', S1A: 'S1a', S2: 'S2', S2A: 'S2a' }
+                SOURCES: { S1: 'S1', S1A: 'S1a', S2: 'S2', S2A: 'S2a' },
+                // Hosted player endpoint is now fixed in configuration and not exposed as a configurable API proxy
+                PLAYER_PROXY: 'https://anym3u8player.com/ultimate-player-generator/player.php'
             };
 
             const HELPERS = {
@@ -238,7 +265,6 @@
             const urlParams = new URLSearchParams(window.location.search);
             const s1Format = urlParams.get('s1_format') || API_FALLBACKS.s1_format;
             const s2Format = urlParams.get('s2_format') || API_FALLBACKS.s2_format;
-            const proxyUrl = urlParams.get('proxy_url') || API_FALLBACKS.proxy_url;
             const metaUrl = urlParams.get('metadata_url') || API_FALLBACKS.metadata_url;
             const scheduleUrl = urlParams.get('schedule_url') || API_FALLBACKS.schedule_url;
 
@@ -320,15 +346,19 @@
                     const encodedUrl = encodeURIComponent(url), encodedLogo = encodeURIComponent(logo);
                     let frameUrl = "";
                     if (variant === 'DEBUG') { frameUrl = `https://galeksandrp.github.io/hls.js/demo/?src=${encodedUrl}&enableStreaming=true&autoRecoverError=true`; }
-                    else if (variant === 'STAND_ALONE') { frameUrl = `${proxyUrl}?url=${encodedUrl}&player=clappr&autoplay=1&loop=1&controls=hidden&width=responsive`; }
-                    else { frameUrl = `${proxyUrl}?url=${encodedUrl}&player=${engine}&autoplay=1&loop=1&controls=hidden&theme=flat&logo=1&poster=${encodedLogo}&width=responsive`; }
+                    else if (variant === 'STAND_ALONE') { 
+                        frameUrl = `${CONFIG.PLAYER_PROXY}?url=${encodedUrl}&player=clappr&autoplay=1&loop=1&controls=hidden&width=responsive`; 
+                    }
+                    else { 
+                        frameUrl = `${CONFIG.PLAYER_PROXY}?url=${encodedUrl}&player=${engine}&autoplay=1&loop=1&controls=hidden&theme=flat&logo=1&poster=${encodedLogo}&width=responsive`; 
+                    }
                     const handleFrameLoad = () => { if(s('vLoader')) s('vLoader').style.display='none'; setStatus('playing'); if (loadStartTime > 0) { s('loadTimeDisplay').innerText = `Loaded in ${((Date.now() - loadStartTime) / 1000).toFixed(2)}s`; loadStartTime = 0; } };
                     w.innerHTML = loaderHTML + `<iframe id="extPlayerFrame" src="${frameUrl}" width="100%" height="100%" frameborder="0" allow="autoplay; fullscreen"></iframe>`;
                     s('extPlayerFrame').onload = handleFrameLoad; return { type: 'iframe' };
                 },
                 'NATIVE': (url, w) => { w.innerHTML = loaderHTML + `<video id="videoPlayer" autoplay ${controlsActive?'controls':''} style="width:100%;height:100%;background:#000"></video>`; const v = s('videoPlayer'); v.muted = manualMute; v.src = url; setupNativeEvents(v, 'NATIVE'); v.play().catch(()=>{}); return v; },
                 'HLS.JS': (url, w) => { w.innerHTML = loaderHTML + `<video id="videoPlayer" autoplay ${controlsActive?'controls':''} style="width:100%;height:100%;background:#000"></video>`; const v = s('videoPlayer'); v.muted = manualMute; if(Hls.isSupported()) { hlsInstance = new Hls(); setupHlsLogging(hlsInstance); hlsInstance.loadSource(url); hlsInstance.attachMedia(v); } else { v.src = url; } setupNativeEvents(v, 'HLS.JS'); return v; },
-                'VIDEOJS': (url, w) => { w.innerHTML = loaderHTML + `<video id="vjs_player" class="video-js vjs-default-skin vjs-big-play-centered" style="width:100%;height:100%"></video>`; const p = videojs('vjs_player', { autoplay: true, muted: manualMute, controls: controlsActive, sources: [{ src: url, type: 'application/x-mpegURL' }] }); p.one('play', ()=>{ if(s('vLoader')) s('vLoader').style.display='none'; setStatus('playing'); }); p.ready(() => { if(p.tech().el()) setupNativeEvents(p.tech().el(), 'VIDEOJS'); }); return p; },
+                'VIDEOJS': (url, w) => { w.innerHTML = loaderHTML + `<video id="videoPlayer" autoplay ${controlsActive?'controls':''} style="width:100%;height:100%;background:#000"></video>`; const v = s('videoPlayer'); v.muted = manualMute; if(Hls.isSupported()) { hlsInstance = new Hls(); setupHlsLogging(hlsInstance); hlsInstance.loadSource(url); hlsInstance.attachMedia(v); } else { v.src = url; } setupNativeEvents(v, 'HLS.JS'); return v; },
                 'PLYR': (url, w) => { w.innerHTML = loaderHTML + `<video id="plyr_player" crossorigin playsinline style="width:100%;height:100%"></video>`; const v = s('plyr_player'); setupNativeEvents(v, 'PLYR'); if(Hls.isSupported()) { hlsInstance = new Hls(); setupHlsLogging(hlsInstance); hlsInstance.loadSource(url); hlsInstance.attachMedia(v); } else v.src = url; return new Plyr(v, { autoplay: true, muted: manualMute, controls: controlsActive ? ['play-large','play','progress','current-time','mute','volume','captions','settings','pip','airplay','fullscreen'] : [] }); },
                 'CLAPPR': (url, w) => { w.innerHTML = loaderHTML + `<div id="clapprContainer"></div>`; const p = new Clappr.Player({ source: url, parentId: "#clapprContainer", width: '100%', height: '100%', autoPlay: true, mute: manualMute, chromeless: !controlsActive }); p.on(Clappr.Events.PLAYER_PLAY, ()=>{ if(s('vLoader')) s('vLoader').style.display='none'; setStatus('playing'); updatePlayButton(); }); return p; },
                 'ARTPLAYER': (url, w) => { w.innerHTML = loaderHTML + `<div id="artContainer"></div>`; const p = new Artplayer({ container: '#artContainer', url: url, type: 'm3u8', autoplay: true, muted: manualMute, isLive: true, customType: { m3u8: (v, u) => { if(Hls.isSupported()){ hlsInstance=new Hls(); setupHlsLogging(hlsInstance); hlsInstance.loadSource(u); hlsInstance.attachMedia(v); } else v.src=u; } } }); if(p.video) setupNativeEvents(p.video, 'ARTPLAYER'); return p; },
@@ -400,7 +430,10 @@
             window.closePlayer = () => { setStatus('idle'); destroyActivePlayer(); s('playerContainer').classList.add('hidden'); currentActiveSid = null; draw(); };
             window.openCurrentTab = () => {
                 if(!currentStreamUrl) return; const u=encodeURIComponent(currentStreamUrl); 
-                if(isHostedEngine(currentEngine)) { const eng = currentEngine.startsWith('ANY_') ? currentEngine.split('_')[1].toLowerCase() : 'clappr'; window.open(`${proxyUrl}?url=${u}&player=${eng}&autoplay=1&muted=${manualMute?1:0}&width=responsive`,'_blank'); } 
+                if(isHostedEngine(currentEngine)) { 
+                    const eng = currentEngine.startsWith('ANY_') ? currentEngine.split('_')[1].toLowerCase() : 'clappr'; 
+                    window.open(`${CONFIG.PLAYER_PROXY}?url=${u}&player=${eng}&autoplay=1&muted=${manualMute?1:0}&width=responsive`,'_blank'); 
+                } 
                 else window.open(currentStreamUrl,'_blank'); 
             };
             const renderSourceButtons = (sid, n, prog) => {
