@@ -5,18 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Live TV Guide</title>
     
-    <!-- Dependencies -->
+    <!-- Core Dependencies -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest" crossorigin="anonymous"></script>
-    <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet">
-    <script src="https://vjs.zencdn.net/8.10.0/video.min.js" crossorigin="anonymous"></script>
-    <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css">
-    <script src="https://cdn.plyr.io/3.7.8/plyr.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/clappr@latest/dist/clappr.min.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/artplayer/dist/artplayer.js" crossorigin="anonymous"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.7.11/shaka-player.ui.min.js" crossorigin="anonymous"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.7.11/controls.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/dplayer/dist/DPlayer.min.js" crossorigin="anonymous"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
 
     <script>
@@ -186,6 +176,9 @@
 
     <!-- LOGIC -->
     <script>
+
+
+
         window.onerror = (msg) => { console.error(msg); return true; };
 
         (async () => {
@@ -209,7 +202,18 @@
                     S1A: 'ANY_CLAPPR',
                     S2: 'NATIVE'
                 },
-                SOURCES: { S1: 'S1', S1A: 'S1a', S2: 'S2', S2A: 'S2a' }
+                SOURCES: { S1: 'S1', S1A: 'S1a', S2: 'S2', S2A: 'S2a' },
+                // Lazy-load resource mapping
+                RESOURCES: {
+                    'HLS.JS': ['https://cdn.jsdelivr.net/npm/hls.js@latest'],
+                    'VIDEOJS': ['https://vjs.zencdn.net/8.10.0/video-js.css', 'https://vjs.zencdn.net/8.10.0/video.min.js'],
+                    'PLYR': ['https://cdn.plyr.io/3.7.8/plyr.css', 'https://cdn.plyr.io/3.7.8/plyr.js', 'https://cdn.jsdelivr.net/npm/hls.js@latest'],
+                    'CLAPPR': ['https://cdn.jsdelivr.net/npm/clappr@latest/dist/clappr.min.js'],
+                    'ARTPLAYER': ['https://cdn.jsdelivr.net/npm/artplayer/dist/artplayer.js', 'https://cdn.jsdelivr.net/npm/hls.js@latest'],
+                    'SHAKA': ['https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.7.11/controls.min.css', 'https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.7.11/shaka-player.ui.min.js'],
+                    'DPLAYER': ['https://cdn.jsdelivr.net/npm/dplayer/dist/DPlayer.min.js', 'https://cdn.jsdelivr.net/npm/hls.js@latest']
+                },
+                LOADED_RESOURCES: new Set()
             };
 
             const HELPERS = {
@@ -222,6 +226,28 @@
                     return logos?.[0] 
                         ? `<img src="${logos[0]}" loading="lazy" class="w-full h-full object-contain" onerror="window.handleLogoError(this, '${ini}')">`
                         : `<span class="text-xs font-bold">${ini}</span>`;
+                },
+                loadDependency: (urls) => {
+                    if (!urls) return Promise.resolve();
+                    return Promise.all(urls.map(url => {
+                        if (CONFIG.LOADED_RESOURCES.has(url)) return Promise.resolve();
+                        return new Promise((resolve, reject) => {
+                            let el;
+                            if (url.endsWith('.css')) {
+                                el = document.createElement('link');
+                                el.rel = 'stylesheet';
+                                el.href = url;
+                            } else {
+                                el = document.createElement('script');
+                                el.src = url;
+                                el.async = true;
+                                el.crossOrigin = "anonymous";
+                            }
+                            el.onload = () => { CONFIG.LOADED_RESOURCES.add(url); resolve(); };
+                            el.onerror = () => { vlog(`Failed to load resource: ${url}`); reject(); };
+                            document.head.appendChild(el);
+                        });
+                    }));
                 }
             };
 
@@ -231,13 +257,13 @@
             let manualMute = false, ccActive = localStorage.getItem(CC_PREF_KEY) === 'true', hasCaptions = false, controlsActive = false;
             let currentEngine = 'NATIVE', currentPlayer = null, hlsInstance = null, statsInterval = null;
             
-            // --- API URL PARAMETERS (FALLBACKS REMOVED) ---
+            // --- API URL PARAMETERS ---
             const urlParams = new URLSearchParams(window.location.search);
-            const s1Format = urlParams.get('s1_format') || '';
-            const s2Format = urlParams.get('s2_format') || '';
-            const proxyUrl = urlParams.get('proxy_url') || '';
-            const metaUrl = urlParams.get('metadata_url') || '';
-            const scheduleUrl = urlParams.get('schedule_url') || '';
+            const s1Format = urlParams.get('s1_format') || API_FALLBACKS.s1_format;
+            const s2Format = urlParams.get('s2_format') || API_FALLBACKS.s2_format;
+            const metaUrl = urlParams.get('metadata_url') || API_FALLBACKS.metadata_url;
+            const scheduleUrl = urlParams.get('schedule_url') || API_FALLBACKS.schedule_url;
+            const proxyUrl = urlParams.get('proxy_url') || API_FALLBACKS.proxy_url;
 
             let loadStartTime = 0, currentActiveSid = null, recoveryAttempts = 0; 
 
@@ -312,24 +338,74 @@
             };
 
             const players = {
-                'IFRAME': (url, w, variant, logo='') => {
+                'IFRAME': async (url, w, variant, logo='') => {
                     const engine = variant.startsWith('ANY_') ? variant.split('_')[1].toLowerCase() : 'clappr';
                     const encodedUrl = encodeURIComponent(url), encodedLogo = encodeURIComponent(logo);
-                    let frameUrl = variant === 'DEBUG' ? `https://galeksandrp.github.io/hls.js/demo/?src=${encodedUrl}&enableStreaming=true&autoRecoverError=true` :
-                                   variant === 'STAND_ALONE' ? `https://watermoufjunk.github.io/stand_alone2.html?url=${encodedUrl}` :
-                                   `${proxyUrl}?player=${engine}&url=${encodedUrl}&autoplay=1&loop=1&controls=hidden&theme=flat&logo=1&poster=${encodedLogo}&width=responsive`;
+                    let frameUrl = "";
+                    if (variant === 'DEBUG') { frameUrl = `https://galeksandrp.github.io/hls.js/demo/?src=${encodedUrl}&enableStreaming=true&autoRecoverError=true`; }
+                    else if (variant === 'STAND_ALONE') { 
+                        frameUrl = `${proxyUrl}?url=${encodedUrl}&player=clappr&autoplay=1&loop=1&controls=hidden&width=responsive`; 
+                    }
+                    else { 
+                        frameUrl = `${proxyUrl}?url=${encodedUrl}&player=${engine}&autoplay=1&loop=1&controls=hidden&theme=flat&logo=1&poster=${encodedLogo}&width=responsive`; 
+                    }
                     const handleFrameLoad = () => { if(s('vLoader')) s('vLoader').style.display='none'; setStatus('playing'); if (loadStartTime > 0) { s('loadTimeDisplay').innerText = `Loaded in ${((Date.now() - loadStartTime) / 1000).toFixed(2)}s`; loadStartTime = 0; } };
                     w.innerHTML = loaderHTML + `<iframe id="extPlayerFrame" src="${frameUrl}" width="100%" height="100%" frameborder="0" allow="autoplay; fullscreen"></iframe>`;
                     s('extPlayerFrame').onload = handleFrameLoad; return { type: 'iframe' };
                 },
-                'NATIVE': (url, w) => { w.innerHTML = loaderHTML + `<video id="videoPlayer" autoplay ${controlsActive?'controls':''} style="width:100%;height:100%;background:#000"></video>`; const v = s('videoPlayer'); v.muted = manualMute; v.src = url; setupNativeEvents(v, 'NATIVE'); v.play().catch(()=>{}); return v; },
-                'HLS.JS': (url, w) => { w.innerHTML = loaderHTML + `<video id="videoPlayer" autoplay ${controlsActive?'controls':''} style="width:100%;height:100%;background:#000"></video>`; const v = s('videoPlayer'); v.muted = manualMute; if(Hls.isSupported()) { hlsInstance = new Hls(); setupHlsLogging(hlsInstance); hlsInstance.loadSource(url); hlsInstance.attachMedia(v); } else { v.src = url; } setupNativeEvents(v, 'HLS.JS'); return v; },
-                'VIDEOJS': (url, w) => { w.innerHTML = loaderHTML + `<video id="vjs_player" class="video-js vjs-default-skin vjs-big-play-centered" style="width:100%;height:100%"></video>`; const p = videojs('vjs_player', { autoplay: true, muted: manualMute, controls: controlsActive, sources: [{ src: url, type: 'application/x-mpegURL' }] }); p.one('play', ()=>{ if(s('vLoader')) s('vLoader').style.display='none'; setStatus('playing'); }); p.ready(() => { if(p.tech().el()) setupNativeEvents(p.tech().el(), 'VIDEOJS'); }); return p; },
-                'PLYR': (url, w) => { w.innerHTML = loaderHTML + `<video id="plyr_player" crossorigin playsinline style="width:100%;height:100%"></video>`; const v = s('plyr_player'); setupNativeEvents(v, 'PLYR'); if(Hls.isSupported()) { hlsInstance = new Hls(); setupHlsLogging(hlsInstance); hlsInstance.loadSource(url); hlsInstance.attachMedia(v); } else v.src = url; return new Plyr(v, { autoplay: true, muted: manualMute, controls: controlsActive ? ['play-large','play','progress','current-time','mute','volume','captions','settings','pip','airplay','fullscreen'] : [] }); },
-                'CLAPPR': (url, w) => { w.innerHTML = loaderHTML + `<div id="clapprContainer"></div>`; const p = new Clappr.Player({ source: url, parentId: "#clapprContainer", width: '100%', height: '100%', autoPlay: true, mute: manualMute, chromeless: !controlsActive }); p.on(Clappr.Events.PLAYER_PLAY, ()=>{ if(s('vLoader')) s('vLoader').style.display='none'; setStatus('playing'); updatePlayButton(); }); return p; },
-                'ARTPLAYER': (url, w) => { w.innerHTML = loaderHTML + `<div id="artContainer"></div>`; const p = new Artplayer({ container: '#artContainer', url: url, type: 'm3u8', autoplay: true, muted: manualMute, isLive: true, customType: { m3u8: (v, u) => { if(Hls.isSupported()){ hlsInstance=new Hls(); setupHlsLogging(hlsInstance); hlsInstance.loadSource(u); hlsInstance.attachMedia(v); } else v.src=u; } } }); if(p.video) setupNativeEvents(p.video, 'ARTPLAYER'); return p; },
-                'SHAKA': (url, w) => { w.innerHTML = loaderHTML + `<div id="shakaContainer" style="width:100%;height:100%"><video id="shakaVideo" style="width:100%;height:100%;background:#000" autoplay></video></div>`; shaka.polyfill.installAll(); const v = s('shakaVideo'); setupNativeEvents(v, 'SHAKA'); const p = new shaka.Player(v), ui = new shaka.ui.Overlay(p, s('shakaContainer'), v); v.muted = manualMute; p.load(url).then(()=>{ v.play().catch(()=>{}); }); return { player: p, ui: ui, video: v }; },
-                'DPLAYER': (url, w) => { w.innerHTML = loaderHTML + `<div id="dplayerContainer"></div>`; const p = new DPlayer({ container: s('dplayerContainer'), autoplay: true, video: { url: url, type: 'hls' }, volume: manualMute?0:0.7 }); if(p.video) setupNativeEvents(p.video, 'DPLAYER'); return p; }
+                'NATIVE': async (url, w) => { 
+                    await HELPERS.loadDependency(CONFIG.RESOURCES['HLS.JS']);
+                    w.innerHTML = loaderHTML + `<video id="videoPlayer" autoplay ${controlsActive?'controls':''} style="width:100%;height:100%;background:#000"></video>`; 
+                    const v = s('videoPlayer'); v.muted = manualMute; v.src = url; setupNativeEvents(v, 'NATIVE'); v.play().catch(()=>{}); return v; 
+                },
+                'HLS.JS': async (url, w) => { 
+                    await HELPERS.loadDependency(CONFIG.RESOURCES['HLS.JS']);
+                    w.innerHTML = loaderHTML + `<video id="videoPlayer" autoplay ${controlsActive?'controls':''} style="width:100%;height:100%;background:#000"></video>`; 
+                    const v = s('videoPlayer'); v.muted = manualMute; 
+                    if(Hls.isSupported()) { 
+                        hlsInstance = new Hls(); setupHlsLogging(hlsInstance); hlsInstance.loadSource(url); hlsInstance.attachMedia(v); 
+                    } else { v.src = url; }
+                    setupNativeEvents(v, 'HLS.JS'); return v; 
+                },
+                'VIDEOJS': async (url, w) => { 
+                    await HELPERS.loadDependency(CONFIG.RESOURCES['VIDEOJS']);
+                    w.innerHTML = loaderHTML + `<video id="vjs_player" class="video-js vjs-default-skin vjs-big-play-centered" style="width:100%;height:100%"></video>`; 
+                    const p = videojs('vjs_player', { autoplay: true, muted: manualMute, controls: controlsActive, sources: [{ src: url, type: 'application/x-mpegURL' }] }); 
+                    p.one('play', ()=>{ if(s('vLoader')) s('vLoader').style.display='none'; setStatus('playing'); }); 
+                    p.ready(() => { if(p.tech().el()) setupNativeEvents(p.tech().el(), 'VIDEOJS'); }); return p; 
+                },
+                'PLYR': async (url, w) => { 
+                    await HELPERS.loadDependency(CONFIG.RESOURCES['PLYR']);
+                    w.innerHTML = loaderHTML + `<video id="plyr_player" crossorigin playsinline style="width:100%;height:100%"></video>`; 
+                    const v = s('plyr_player'); setupNativeEvents(v, 'PLYR'); 
+                    if(Hls.isSupported()) { hlsInstance = new Hls(); setupHlsLogging(hlsInstance); hlsInstance.loadSource(url); hlsInstance.attachMedia(v); } else v.src = url; 
+                    return new Plyr(v, { autoplay: true, muted: manualMute, controls: controlsActive ? ['play-large','play','progress','current-time','mute','volume','captions','settings','pip','airplay','fullscreen'] : [] }); 
+                },
+                'CLAPPR': async (url, w) => { 
+                    await HELPERS.loadDependency(CONFIG.RESOURCES['CLAPPR']);
+                    w.innerHTML = loaderHTML + `<div id="clapprContainer"></div>`; 
+                    const p = new Clappr.Player({ source: url, parentId: "#clapprContainer", width: '100%', height: '100%', autoPlay: true, mute: manualMute, chromeless: !controlsActive }); 
+                    p.on(Clappr.Events.PLAYER_PLAY, ()=>{ if(s('vLoader')) s('vLoader').style.display='none'; setStatus('playing'); updatePlayButton(); }); return p; 
+                },
+                'ARTPLAYER': async (url, w) => { 
+                    await HELPERS.loadDependency(CONFIG.RESOURCES['ARTPLAYER']);
+                    w.innerHTML = loaderHTML + `<div id="artContainer"></div>`; 
+                    const p = new Artplayer({ container: '#artContainer', url: url, type: 'm3u8', autoplay: true, muted: manualMute, isLive: true, customType: { m3u8: (v, u) => { if(Hls.isSupported()){ hlsInstance=new Hls(); setupHlsLogging(hlsInstance); hlsInstance.loadSource(u); hlsInstance.attachMedia(v); } else v.src=u; } } }); 
+                    if(p.video) setupNativeEvents(p.video, 'ARTPLAYER'); return p; 
+                },
+                'SHAKA': async (url, w) => { 
+                    await HELPERS.loadDependency(CONFIG.RESOURCES['SHAKA']);
+                    w.innerHTML = loaderHTML + `<div id="shakaContainer" style="width:100%;height:100%"><video id="shakaVideo" style="width:100%;height:100%;background:#000" autoplay></video></div>`; 
+                    shaka.polyfill.installAll(); const v = s('shakaVideo'); setupNativeEvents(v, 'SHAKA'); 
+                    const p = new shaka.Player(v), ui = new shaka.ui.Overlay(p, s('shakaContainer'), v); v.muted = manualMute; 
+                    p.load(url).then(()=>{ v.play().catch(()=>{}); }); return { player: p, ui: ui, video: v }; 
+                },
+                'DPLAYER': async (url, w) => { 
+                    await HELPERS.loadDependency(CONFIG.RESOURCES['DPLAYER']);
+                    w.innerHTML = loaderHTML + `<div id="dplayerContainer"></div>`; 
+                    const p = new DPlayer({ container: s('dplayerContainer'), autoplay: true, video: { url: url, type: 'hls' }, volume: manualMute?0:0.7 }); 
+                    if(p.video) setupNativeEvents(p.video, 'DPLAYER'); return p; 
+                }
             };
 
             async function play(u, eng, name, title, dTitle, extra = {}) {
@@ -356,8 +432,8 @@
 
                 if(!u && extra.resolver) {
                     const ru = await resolveUrl(extra.slug, extra.label);
-                    if(ru) loadStream(ru, ""); else { setStatus('error'); s('loadTimeDisplay').innerText = "Resolution Error"; }
-                } else if(u) { loadStream(u, ""); }
+                    if(ru) await loadStream(ru, ""); else { setStatus('error'); s('loadTimeDisplay').innerText = "Resolution Error"; }
+                } else if(u) { await loadStream(u, ""); }
             }
             
             window.play = play;
@@ -378,7 +454,12 @@
                 if(!v) return; if(v.textTracks) { v.textTracks.addEventListener('addtrack', checkCaps); if(v.textTracks.length) checkCaps(); }
                 ['play','playing','pause','volumechange','error'].forEach(e => { v.addEventListener(e, () => { setStatus(e); if(e==='playing'||e==='loadeddata') { recoveryAttempts = 0; if(s('vLoader')) s('vLoader').style.display='none'; if (loadStartTime > 0) { s('loadTimeDisplay').innerText = `Loaded in ${((Date.now() - loadStartTime) / 1000).toFixed(2)}s`; loadStartTime = 0; } } if (e === 'error' && recoveryAttempts < 5) { recoveryAttempts++; setStatus('retrying'); setTimeout(() => { if(currentStreamUrl) loadStream(currentStreamUrl); }, 2000); } if(['play','playing','pause'].includes(e)) updatePlayButton(v); if(e==='volumechange' && !v.muted && v.volume>0) s('unmutePrompt').style.display='none'; }); });
             };
-            const loadStream = (url, logoUrl='') => { destroyActivePlayer(); currentStreamUrl = url; hasCaptions = false; updateCCUI(); loadStartTime = Date.now(); s('loadTimeDisplay').innerText = ""; const eng = currentEngine; if(isHostedEngine(eng)) currentPlayer = players.IFRAME(url, s('videoWrapper'), eng, logoUrl); else if(players[eng]) currentPlayer = players[eng](url, s('videoWrapper')); };
+            const loadStream = async (url, logoUrl='') => { 
+                destroyActivePlayer(); currentStreamUrl = url; hasCaptions = false; updateCCUI(); loadStartTime = Date.now(); s('loadTimeDisplay').innerText = ""; 
+                const eng = currentEngine; 
+                if(isHostedEngine(eng)) currentPlayer = await players.IFRAME(url, s('videoWrapper'), eng, logoUrl); 
+                else if(players[eng]) currentPlayer = await players[eng](url, s('videoWrapper')); 
+            };
             window.toggleFullscreen = () => { const e=s('videoWrapper'); if(!e)return; if (document.fullscreenElement) document.exitFullscreen(); else e.requestFullscreen().catch(()=>{}); };
             window.togglePlay = () => { if(!currentPlayer) return; try { const v = currentPlayer.tagName === 'VIDEO' ? currentPlayer : (currentPlayer.video || document.querySelector('video')); if(v) v.paused?v.play():v.pause(); } catch(e){} };
             window.toggleMute = () => { 
@@ -396,7 +477,10 @@
             window.closePlayer = () => { setStatus('idle'); destroyActivePlayer(); s('playerContainer').classList.add('hidden'); currentActiveSid = null; draw(); };
             window.openCurrentTab = () => {
                 if(!currentStreamUrl) return; const u=encodeURIComponent(currentStreamUrl); 
-                if(isHostedEngine(currentEngine)) { const eng = currentEngine.startsWith('ANY_') ? currentEngine.split('_')[1].toLowerCase() : 'clappr'; window.open(`${proxyUrl}?url=${u}&player=${eng}&autoplay=1&muted=${manualMute?1:0}&width=responsive`,'_blank'); } 
+                if(isHostedEngine(currentEngine)) { 
+                    const eng = currentEngine.startsWith('ANY_') ? currentEngine.split('_')[1].toLowerCase() : 'clappr'; 
+                    window.open(`${proxyUrl}?url=${u}&player=${eng}&autoplay=1&muted=${manualMute?1:0}&width=responsive`,'_blank'); 
+                } 
                 else window.open(currentStreamUrl,'_blank'); 
             };
             const renderSourceButtons = (sid, n, prog) => {
@@ -425,9 +509,9 @@
                 document.querySelectorAll('.channel-card-active').forEach(el => { el.className = el.className.replace(CONFIG.CLASS.ACTIVE, CONFIG.CLASS.RESET); });
                 const newEl = document.querySelector(`[data-sid="${sid}"]`);
                 if (newEl) { newEl.className = newEl.className.replace(CONFIG.CLASS.RESET, CONFIG.CLASS.ACTIVE); newEl.focus(); }
-                renderSourceButtons(sid, n, t); play(null, null, n, t, 'AUTO', {sid:sid});
-                if(m.slug1) { const u=await resolveUrl(m.slug1, CONFIG.SOURCES.S1A); if(u) { setEngine(CONFIG.ENGINES.S1A); loadStream(u, ""); window.setActiveSource(CONFIG.SOURCES.S1A); return; } }
-                if(m.slug2) { setEngine(CONFIG.ENGINES.S2); loadStream(getS2Url(m.slug2), ""); window.setActiveSource(CONFIG.SOURCES.S2); }
+                renderSourceButtons(sid, n, t); await play(null, null, n, t, 'AUTO', {sid:sid});
+                if(m.slug1) { const u=await resolveUrl(m.slug1, CONFIG.SOURCES.S1A); if(u) { setEngine(CONFIG.ENGINES.S1A); await loadStream(u, ""); window.setActiveSource(CONFIG.SOURCES.S1A); return; } }
+                if(m.slug2) { setEngine(CONFIG.ENGINES.S2); await loadStream(getS2Url(m.slug2), ""); window.setActiveSource(CONFIG.SOURCES.S2); }
             };
             window.toggleSearch = () => { const c=s('searchContainer'); if(!c.classList.toggle('hidden')) s('searchInput').focus(); else { s('searchInput').value=''; searchTerm=''; draw(); } };
             window.sf = (v) => { filter=v; draw(); window.scrollTo({top:0,behavior:'smooth'}); };
@@ -481,22 +565,15 @@
             });
             try {
                 if(s('ccToggle')) updateCCUI();
-                
-                vlog("Checking parameters...");
-                if (!metaUrl) {
-                    vlog("<span class='text-red-500'>ERROR: metadata_url missing from URL.</span>");
-                }
-
+                vlog("Booting...");
                 const activeKey = metaUrl ? `epg_${btoa(metaUrl).substring(0,12)}` : CACHE_KEY;
                 let md = null, cObj = localStorage.getItem(activeKey);
                 if(cObj) { const p=JSON.parse(cObj); if(Date.now()-p.ts<CACHE_TTL) md=p.data; }
                 if(!md && metaUrl) { md=await fetchResilient(metaUrl,'Metadata'); if(md) localStorage.setItem(activeKey, JSON.stringify({ts:Date.now(),data:md})); }
-                
                 if(md) { 
                     (Array.isArray(md)?md:(md.channels||md.data||[])).forEach(i => { const id=(i.mapping?.tvg_id||i.id||"").trim().toLowerCase(); if(id) { meta.set(id, {name:i.display_name, category:i.group_title, logos:i.logos, slug1:i.mapping?.slug1||i.slug, slug2:i.mapping?.slug2||i.slug2, color:(i.info||i.color||"").toString().toLowerCase()}); channelsMap.set(id, {site_id:id, title:i.display_name, next_programs:[]}); if(i.group_title) baseCats.add(i.group_title); } }); 
                     draw(); window.initFocus();
                 }
-                
                 if (scheduleUrl) {
                     const sc = await fetchResilient(scheduleUrl,'Schedule');
                     if(sc) { scheduleLoaded=true; (Array.isArray(sc)?sc:(sc.channels||[])).forEach(c => { const id=(c.site_id||"").trim().toLowerCase(); if(channelsMap.has(id)) channelsMap.get(id).next_programs=c.next_programs; else channelsMap.set(id,c); }); draw(); setInterval(draw, 60000); }
