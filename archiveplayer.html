@@ -3,129 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Archive Explorer</title>
+    <title>Archive Explorer - Global</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
     <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
-
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@500&display=swap');
-        
         body { font-family: 'Inter', sans-serif; background-color: #0b0f1a; color: #f8fafc; overflow-x: hidden; }
         .mono { font-family: 'JetBrains Mono', monospace; }
-
         .custom-scrollbar::-webkit-scrollbar { height: 4px; width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
-        
         .player-aspect { aspect-ratio: 16 / 9; background: #000; }
-
-        .vjs-progress-control, .vjs-remaining-time, .vjs-current-time, .vjs-duration-display, .vjs-time-divider { 
-            display: none !important; 
-        }
-
-        .card-title-overlay {
-            font-size: 0.75rem;
-            font-weight: 800;
-            line-height: 1.2;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
-            text-transform: uppercase;
-        }
-
-        .card-subtitle-overlay {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.6rem;
-            font-weight: 500;
-            color: #94a3b8;
-            margin-top: 4px;
-            display: -webkit-box;
-            -webkit-line-clamp: 1;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-            letter-spacing: 0.025em;
-        }
-
-        .status-badge {
-            position: absolute; top: 6px; right: 6px;
-            font-size: 8px; font-weight: 900; padding: 2px 6px;
-            border-radius: 4px; text-transform: uppercase;
-            z-index: 20;
-            letter-spacing: 0.05em;
-        }
-
-        .network-badge {
-            position: absolute; top: 6px; left: 6px;
-            font-size: 8px; font-weight: 900; padding: 2px 6px;
-            border-radius: 4px; text-transform: uppercase;
-            z-index: 20;
-            letter-spacing: 0.05em;
-            background: rgba(37, 99, 235, 0.9);
-            color: white;
-            backdrop-filter: blur(4px);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        }
-
-        .status-checking { background: #1e293b; color: #64748b; border: 1px solid #334155; }
-        .status-ready { background: #064e3b; color: #34d399; border: 1px solid #065f46; }
-        .status-stub { background: #450a0a; color: #f87171; border: 1px solid #7f1d1d; }
-        
-        body:not(.show-stubs-active) .stub-card { display: none; }
-        .stub-card { opacity: 0.4; }
-        
-        .global-seekbar-container {
-            height: 14px;
-            background: #1e293b;
-            border-radius: 7px;
-            position: relative;
-            cursor: pointer;
-            overflow: hidden;
-            border: 1px solid #334155;
-            transition: all 0.2s ease;
-        }
-        .global-seekbar-container:hover {
-            border-color: #475569;
-            background: #232f42;
-        }
-        .global-seekbar-fill {
-            height: 100%;
-            background: linear-gradient(to right, #2563eb, #3b82f6);
-            width: 0%;
-            transition: width 0.1s linear;
-        }
-        .segment-marker {
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            width: 1px;
-            background: rgba(255, 255, 255, 0.25);
-            pointer-events: none;
-        }
-        .seg-btn.active {
-            border-color: #3b82f6;
-            background: rgba(59, 130, 246, 0.1);
-        }
-
-        .endpoint-bar {
-            background: #020617;
-            border-bottom: 1px solid #1e293b;
-            padding: 4px 24px;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 10px;
-            color: #475569;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            overflow: hidden;
-            white-space: nowrap;
-        }
+        .vjs-progress-control, .vjs-remaining-time, .vjs-current-time, .vjs-duration-display, .vjs-time-divider { display: none !important; }
+        .card-title-overlay { font-size: 0.75rem; font-weight: 800; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-shadow: 0 2px 4px rgba(0,0,0,0.8); text-transform: uppercase; }
+        .card-subtitle-overlay { font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; font-weight: 500; color: #94a3b8; margin-top: 4px; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; letter-spacing: 0.025em; }
+        .network-badge { position: absolute; top: 6px; left: 6px; font-size: 8px; font-weight: 900; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; z-index: 20; letter-spacing: 0.05em; background: rgba(37, 99, 235, 0.9); color: white; backdrop-filter: blur(4px); box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+        .network-badge.ru { background: rgba(220, 38, 38, 0.9); }
+        .global-seekbar-container { height: 14px; background: #1e293b; border-radius: 7px; position: relative; cursor: pointer; overflow: hidden; border: 1px solid #334155; transition: all 0.2s ease; }
+        .global-seekbar-container:hover { border-color: #475569; background: #232f42; }
+        .global-seekbar-fill { height: 100%; background: linear-gradient(to right, #2563eb, #3b82f6); width: 0%; transition: width 0.1s linear; }
+        .segment-marker { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(255, 255, 255, 0.25); pointer-events: none; }
+        .seg-btn.active { border-color: #3b82f6; background: rgba(59, 130, 246, 0.1); }
+        .endpoint-bar { background: #020617; border-bottom: 1px solid #1e293b; padding: 4px 24px; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #475569; display: flex; align-items: center; gap: 12px; overflow: hidden; white-space: nowrap; }
     </style>
 </head>
-<body class="min-h-screen show-stubs-active">
-
+<body class="min-h-screen">
     <header class="sticky top-0 z-50 bg-slate-900/95 backdrop-blur-md border-b border-slate-800/60 shadow-xl">
         <div class="max-w-[1800px] mx-auto">
             <div class="flex items-center gap-4 p-3 px-6">
@@ -133,24 +36,18 @@
                     <div class="bg-blue-600 p-1.5 rounded-lg text-white">
                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                     </div>
-                    <h1 class="hidden md:block text-sm font-black tracking-tighter uppercase">STUB<span class="text-blue-500">HUNTER</span></h1>
+                    <h1 class="hidden md:block text-sm font-black tracking-tighter uppercase">ARCHIVE<span class="text-blue-500">EXPLORER</span></h1>
                 </div>
-
                 <div class="relative flex-1 max-w-xl">
-                    <input type="text" id="searchInput" placeholder="Search archives..." 
-                        onkeydown="if(event.key==='Enter') resetAndSearch()"
-                        class="w-full bg-slate-800/50 border border-slate-700/50 rounded-full py-2 pl-10 pr-4 focus:ring-1 focus:ring-blue-500 outline-none text-xs font-medium transition-all">
+                    <input type="text" id="searchInput" placeholder="Search global news archives..." onkeydown="if(event.key==='Enter') resetAndSearch()" class="w-full bg-slate-800/50 border border-slate-700/50 rounded-full py-2 pl-10 pr-4 focus:ring-1 focus:ring-blue-500 outline-none text-xs font-medium transition-all">
                 </div>
-
                 <div class="relative group">
                     <button id="network-btn" onclick="toggleDropdown()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-full py-2 px-3 flex items-center gap-1.5 transition-all">
-                        <span class="text-[9px] font-black uppercase tracking-tight text-slate-300">Net</span>
+                        <span class="text-[9px] font-black uppercase tracking-tight text-slate-300">Channels</span>
                         <span id="network-count" class="bg-blue-600 text-[8px] px-1.5 py-0.5 rounded-md text-white font-bold">All</span>
                         <svg class="w-3 h-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                     </button>
-                    
-                    <!-- Managed width to fit full names: w-36 (144px) -->
-                    <div id="network-dropdown" class="absolute right-0 mt-2 w-36 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl hidden z-[60] overflow-hidden">
+                    <div id="network-dropdown" class="absolute right-0 mt-2 w-48 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl hidden z-[60] overflow-hidden">
                         <div class="px-2 py-2 border-b border-slate-800 flex items-center justify-around bg-slate-950/50">
                             <button onclick="setAllStations(true)" class="text-[9px] font-black uppercase text-blue-500 hover:text-blue-400">All</button>
                             <div class="w-px h-3 bg-slate-800"></div>
@@ -159,12 +56,7 @@
                         <div id="network-options-container" class="p-1 space-y-1 max-h-[400px] overflow-y-auto custom-scrollbar"></div>
                     </div>
                 </div>
-
                 <div class="flex items-center gap-4">
-                    <label class="hidden sm:flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" id="stubToggle" checked onchange="toggleStubVisibility()" class="w-3.5 h-3.5 accent-blue-500">
-                        <span class="text-[10px] font-black uppercase text-slate-400">Stubs</span>
-                    </label>
                     <button onclick="resetAndSearch()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all">Scan</button>
                 </div>
             </div>
@@ -192,19 +84,16 @@
                     <svg class="w-4 h-4 transition-transform group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M15 19l-7-7 7-7"></path></svg>
                     <span class="text-[10px] font-black uppercase tracking-widest">Back to Grid</span>
                 </button>
-                
                 <a id="archive-link" href="#" target="_blank" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all">
                     <span>View Archive Page</span>
                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
                 </a>
             </div>
-
             <div class="grid lg:grid-cols-12 gap-8">
                 <div class="lg:col-span-8 space-y-4">
                     <div id="media-container" class="rounded-2xl overflow-hidden player-aspect relative bg-black shadow-2xl border border-slate-800">
                         <video id="main-video" class="video-js vjs-big-play-centered" playsinline controls></video>
                     </div>
-
                     <div class="space-y-2 bg-slate-900/40 p-4 rounded-2xl border border-slate-800/50">
                         <div class="flex justify-between items-center px-1">
                             <span class="text-[9px] font-black text-slate-500 uppercase tracking-widest">Master Timeline (Synced)</span>
@@ -231,45 +120,40 @@
         const API_SEARCH = 'https://archive.org/advancedsearch.php';
         const API_METADATA = 'https://archive.org/metadata/';
         const DOWNLOAD_BASE = 'https://archive.org/download/';
-        const SEGMENT_LIMIT = 365; 
-        
+        const SEGMENT_LIMIT = 300; 
+
         const CHANNEL_MAP = {
-            "CNNW": "CNN", 
-            "FOXNEWSW": "FOX NEWS", 
-            "MSNOW": "MSNBC", 
-            "CNBC": "CNBC", 
-            "BLOOMBERG": "BLOOMBERG", 
-            "FBC": "FOX BIZ",
-            "COM": "COMEDY",
-            "CSPAN": "C-SPAN 1", 
-            "CSPAN2": "C-SPAN 2", 
-            "CSPAN3": "C-SPAN 3",
-            "KNTV": "NBC", 
-            "KTVU": "FOX 2", 
-            "KPIX": "CBS", 
-            "KGO": "ABC", 
-            "KQED": "PBS"
+            "CNNW": "CNN", "FOXNEWSW": "FOX NEWS", "MSNOW": "MSNBC", "CNBC": "CNBC", "BLOOMBERG": "BLOOMBERG",
+            "FBC": "FOX BIZ", "COM": "COMEDY", "CSPAN": "C-SPAN 1", "CSPAN2": "C-SPAN 2", "CSPAN3": "C-SPAN 3",
+            "KNTV": "NBC", "KTVU": "FOX 2", "KPIX": "CBS", "KGO": "ABC", "KQED": "PBS",
+            "1TV": "CHANNEL 1 (RU)", "RUSSIA1": "RUSSIA 1 (RU)", "RUSSIA24": "RUSSIA 24 (RU)", "NTV": "NTV (RU)"
         };
 
-        const STATIONS = [
+        const US_STATIONS = [
             "TV-CNNW", "TV-FOXNEWSW", "TV-MSNOW", "TV-CNBC", "TV-BLOOMBERG",
             "TV-FBC", "TV-COM", "TV-CSPAN", "TV-CSPAN2", "TV-CSPAN3",
             "TV-KNTV", "TV-KTVU", "TV-KPIX", "TV-KGO", "TV-KQED"
         ];
+
+        const RU_STATIONS = [
+            "TV-1TV", "TV-RUSSIA1", "TV-RUSSIA24", "TV-NTV"
+        ];
         
+        const ALL_STATIONS = [...US_STATIONS, ...RU_STATIONS];
+
         let state = {
             page: 1, player: null, activeId: null,
-            itemCache: new Map(),
-            validationQueue: [], isQueueRunning: false,
             currentStartTime: 0,
             activeSegments: [],
-            totalDuration: 0
+            totalDuration: 0,
+            currentVideoFile: null
         };
 
-        window.onload = () => { 
-            initStationDropdown(); 
-            initPlayer(); 
-            resetAndSearch(); 
+        window.onload = () => {
+            initStationDropdown();
+            initPlayer();
+            handleUrlParams(); 
+            resetAndSearch();
             document.addEventListener('click', (e) => {
                 const btn = document.getElementById('network-btn');
                 const menu = document.getElementById('network-dropdown');
@@ -277,8 +161,43 @@
             });
         };
 
-        function toggleDropdown() { document.getElementById('network-dropdown').classList.toggle('hidden'); }
+        function handleUrlParams() {
+            let searchStr = "";
+            try {
+                // Try to get from parent if in an iframe, otherwise from local
+                searchStr = window.location.search || (window.parent !== window ? window.parent.location.search : "");
+            } catch (e) {
+                // Browser security might block window.parent.location access
+                searchStr = window.location.search;
+            }
 
+            const params = new URLSearchParams(searchStr);
+            const chan = params.get('chan');
+            const q = params.get('q');
+
+            if (chan) {
+                const requested = chan.split(',').map(c => c.trim().toUpperCase());
+                document.querySelectorAll('.station-checkbox').forEach(cb => {
+                    const cleanValue = cb.value.replace('TV-', '').toUpperCase();
+                    cb.checked = requested.includes(cleanValue);
+                });
+                updateNetworkSelection(false); 
+            }
+
+            if (q) {
+                const searchInput = document.getElementById('searchInput');
+                if (searchInput) searchInput.value = q;
+            }
+        }
+
+        function updateUrl() {
+            // NOTE: In the current sandboxed environment, window.history.replaceState causes a SecurityError.
+            // We've disabled this update to prevent app crashes.
+            // Parameters are still respected on initial load.
+        }
+
+        function toggleDropdown() { document.getElementById('network-dropdown').classList.toggle('hidden'); }
+        
         function getPrettyName(technicalName) {
             const clean = technicalName.replace('TV-', '').trim().toUpperCase();
             return CHANNEL_MAP[clean] || clean;
@@ -286,47 +205,61 @@
 
         function initStationDropdown() {
             const container = document.getElementById('network-options-container');
-            if (!container) return;
-            STATIONS.forEach(s => {
-                const labelName = getPrettyName(s);
-                const div = document.createElement('label');
-                // Stack layout for zero-truncation in narrow width
-                div.className = "flex items-center justify-between py-1.5 px-2.5 rounded-md cursor-pointer hover:bg-slate-800 transition-colors group border border-transparent hover:border-slate-700/50";
-                div.innerHTML = `
-                    <span class="text-[9px] font-black uppercase tracking-tight text-slate-500 group-hover:text-blue-400 whitespace-nowrap overflow-visible">${labelName}</span>
-                    <input type="checkbox" value="${s}" checked onchange="updateNetworkSelection()" class="station-checkbox w-3.5 h-3.5 accent-blue-600 rounded">
-                `;
-                container.appendChild(div);
-            });
-            updateNetworkSelection();
+            
+            const createHeading = (text) => {
+                const div = document.createElement('div');
+                div.className = "px-2.5 py-1 text-[8px] font-black text-slate-600 uppercase tracking-widest mt-2 bg-slate-950/30";
+                div.innerText = text;
+                return div;
+            };
+
+            container.appendChild(createHeading("United States"));
+            US_STATIONS.forEach(s => container.appendChild(createStationElement(s)));
+
+            container.appendChild(createHeading("Russian Federation"));
+            RU_STATIONS.forEach(s => container.appendChild(createStationElement(s, true)));
+
+            updateNetworkSelection(false);
+        }
+
+        function createStationElement(s, isRu = false) {
+            const labelName = getPrettyName(s);
+            const div = document.createElement('label');
+            div.className = "flex items-center justify-between py-1.5 px-2.5 rounded-md cursor-pointer hover:bg-slate-800 transition-colors group border border-transparent hover:border-slate-700/50";
+            div.innerHTML = `
+                <span class="text-[9px] font-black uppercase tracking-tight text-slate-500 group-hover:text-blue-400 whitespace-nowrap overflow-visible">${labelName}</span>
+                <input type="checkbox" value="${s}" checked onchange="updateNetworkSelection(true)" class="station-checkbox w-3.5 h-3.5 accent-blue-600 rounded">
+            `;
+            return div;
         }
 
         function setAllStations(checked) {
             document.querySelectorAll('.station-checkbox').forEach(cb => cb.checked = checked);
-            updateNetworkSelection();
+            updateNetworkSelection(true);
         }
 
-        function updateNetworkSelection() {
+        function updateNetworkSelection(shouldUpdateUrl = true) {
             const checked = document.querySelectorAll('.station-checkbox:checked').length;
+            const total = document.querySelectorAll('.station-checkbox').length;
             const countDisplay = document.getElementById('network-count');
             if (countDisplay) {
-                if (checked === STATIONS.length) countDisplay.innerText = 'All';
+                if (checked === total) countDisplay.innerText = 'All';
                 else if (checked === 0) countDisplay.innerText = 'None';
                 else countDisplay.innerText = checked;
             }
+            if (shouldUpdateUrl) updateUrl();
         }
 
         function initPlayer() {
-            state.player = videojs('main-video', { 
-                fluid: true, 
-                controls: true, 
-                preload: 'auto',
+            if (videojs.getPlayers()['main-video']) {
+                videojs('main-video').dispose();
+                document.getElementById('media-container').innerHTML = '<video id="main-video" class="video-js vjs-big-play-centered" playsinline controls></video>';
+            }
+            state.player = videojs('main-video', {
+                fluid: true, controls: true, autoplay: false, preload: 'auto',
                 controlBar: {
-                    progressControl: false, 
-                    remainingTimeDisplay: false,
-                    currentTimeDisplay: false,
-                    durationDisplay: false,
-                    timeDivider: false
+                    progressControl: false, remainingTimeDisplay: false,
+                    currentTimeDisplay: false, durationDisplay: false, timeDivider: false
                 }
             });
             state.player.on('timeupdate', updateGlobalProgress);
@@ -357,12 +290,11 @@
             document.querySelectorAll('.seg-btn').forEach((b, i) => b.classList.toggle('active', i === index));
         }
 
-        function toggleStubVisibility() { document.body.classList.toggle('show-stubs-active', document.getElementById('stubToggle').checked); }
-
         async function resetAndSearch() {
-            state.page = 1; state.validationQueue = []; 
+            state.page = 1;
             const grid = document.getElementById('results-grid');
             if (grid) grid.innerHTML = '';
+            updateUrl(); 
             search();
         }
 
@@ -375,62 +307,32 @@
             const userQuery = searchInput ? searchInput.value.trim() : '';
             const selected = Array.from(document.querySelectorAll('.station-checkbox:checked')).map(c => c.value);
             
-            if (selected.length === 0) {
-                if (loader) loader.classList.add('hidden');
-                return;
+            if (selected.length === 0) { 
+                if (loader) loader.classList.add('hidden'); 
+                document.getElementById('results-grid').innerHTML = '<div class="col-span-full py-20 text-center text-slate-500 font-bold uppercase tracking-widest text-xs">No channels selected</div>';
+                return; 
             }
 
             let q = `mediatype:movies AND (${selected.map(s => `collection:${s}`).join(" OR ")})`;
-            if (userQuery) {
-                q += ` AND (title:(${userQuery}) OR description:(${userQuery}))`;
-            }
+            if (userQuery) q += ` AND (title:(${userQuery}) OR description:(${userQuery}))`;
 
-            const params = new URLSearchParams({ 
-                q, 'fl[]': ['identifier', 'title', 'date'], 'sort[]': 'publicdate desc', rows: 40, page: state.page, output: 'json' 
+            const params = new URLSearchParams({
+                q, 'fl[]': ['identifier', 'title', 'date'], 'sort[]': 'publicdate desc', rows: 40, page: state.page, output: 'json'
             });
-            
             const fullUrl = `${API_SEARCH}?${params.toString()}`;
             document.getElementById('endpoint-display').innerText = fullUrl;
-            
             try {
                 const res = await fetch(fullUrl);
                 const data = await res.json();
                 renderGrid(data.response.docs);
-                data.response.docs.forEach(doc => { if (!state.itemCache.has(doc.identifier)) state.validationQueue.push(doc); });
-                if (!state.isQueueRunning) processQueue();
             } catch (e) { console.error(e); } finally { if (loader) loader.classList.add('hidden'); }
         }
 
-        async function processQueue() {
-            if (state.validationQueue.length === 0) { state.isQueueRunning = false; return; }
-            state.isQueueRunning = true;
-            await validateItem(state.validationQueue.shift());
-            setTimeout(processQueue, 50);
-        }
-
-        async function validateItem(doc) {
-            try {
-                const res = await fetch(`${API_METADATA}${doc.identifier}`);
-                const data = await res.json();
-                const mp4 = (data.files || []).find(f => f.name.endsWith('.mp4') && f.source !== 'metadata' && !f.name.includes('_thumb'));
-                const card = document.getElementById(`card-${doc.identifier}`);
-                const badge = document.getElementById(`badge-${doc.identifier}`);
-                if (!mp4) {
-                    state.itemCache.set(doc.identifier, { status: 'stub' });
-                    if (badge) { badge.className = 'status-badge status-stub'; badge.innerText = 'stub'; }
-                    if (card) card.classList.add('stub-card');
-                } else {
-                    state.itemCache.set(doc.identifier, { status: 'ready', file: mp4.name, length: mp4.length });
-                    if (badge) { badge.className = 'status-badge status-ready'; badge.innerText = 'ready'; }
-                }
-            } catch (e) { console.error(e); }
-        }
-
         function parseMetadata(title) {
-            let primaryTitle = ""; let channel = ""; let dateTimeStr = ""; let extractedTimeRange = "";
+            let primaryTitle = ""; let channel = ""; let dateTimeStr = "";
             const timeRangeRegex = /(\d{1,2}:\d{2}(?:am|pm)-\d{1,2}:\d{2}(?:am|pm)\s*[A-Z]{0,4})/i;
             const timeMatch = title.match(timeRangeRegex);
-            if (timeMatch) extractedTimeRange = timeMatch[0].trim();
+            let extractedTimeRange = timeMatch ? timeMatch[0].trim() : "";
 
             if (title.includes(" : ")) {
                 const parts = title.split(" : ");
@@ -441,58 +343,37 @@
                 } else if (parts.length === 2) {
                     channel = getPrettyName(parts[0].trim());
                     const datePart = parts[1].trim();
-                    if (extractedTimeRange) {
-                        primaryTitle = extractedTimeRange;
-                        dateTimeStr = datePart.replace(new RegExp(extractedTimeRange, 'i'), '').trim();
-                    } else { primaryTitle = datePart; dateTimeStr = ""; }
+                    if (extractedTimeRange) { primaryTitle = extractedTimeRange; dateTimeStr = datePart.replace(new RegExp(extractedTimeRange, 'i'), '').trim(); }
+                    else { primaryTitle = datePart; dateTimeStr = ""; }
                 }
-            } else {
-                 const titleUpper = title.toUpperCase();
-                 for (const s of STATIONS) {
-                    const sUpper = s.toUpperCase().replace('TV-', '');
-                    if (titleUpper.includes(sUpper)) {
-                        channel = getPrettyName(s);
-                        const idx = titleUpper.indexOf(sUpper);
-                        const post = title.substring(idx + sUpper.length).trim().replace(/^[_\-:\s]+/, "");
-                        const pre = title.substring(0, idx).trim().replace(/[_\-:\s]+$/, "").replace(/_/g, ' ');
-                        if (pre.length > 2) { primaryTitle = pre; dateTimeStr = post; } 
-                        else {
-                            if (extractedTimeRange) { primaryTitle = extractedTimeRange; dateTimeStr = post.replace(new RegExp(extractedTimeRange, 'i'), '').trim(); } 
-                            else { primaryTitle = post; }
-                        }
-                        break;
-                    }
-                }
-                if (!primaryTitle) primaryTitle = title;
-            }
+            } else { primaryTitle = title; }
             return { showName: primaryTitle.replace(/_/g, ' '), channel, dateTime: dateTimeStr };
         }
 
         function renderGrid(items) {
             const grid = document.getElementById('results-grid');
-            if (!grid) return;
             if (state.page === 1) grid.innerHTML = '';
+            
+            if (items.length === 0 && state.page === 1) {
+                grid.innerHTML = '<div class="col-span-full py-20 text-center text-slate-500 font-bold uppercase tracking-widest text-xs">No archives found</div>';
+                return;
+            }
+
             items.forEach(item => {
-                if (document.getElementById(`card-${item.identifier}`)) return;
                 const meta = parseMetadata(item.title);
+                const isRussian = meta.channel.includes("(RU)");
                 const card = document.createElement('div');
-                card.id = `card-${item.identifier}`;
-                card.className = "group relative cursor-pointer overflow-hidden rounded-xl border border-slate-800 bg-slate-900 aspect-video transition-all shadow-lg";
+                card.className = "group relative cursor-pointer overflow-hidden rounded-xl border border-slate-800 bg-slate-900 aspect-video transition-all shadow-lg hover:border-blue-500/50";
                 card.innerHTML = `
                     <img src="https://archive.org/services/img/${item.identifier}" class="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-all duration-300" loading="lazy">
                     <div class="absolute inset-0 bg-gradient-to-t from-black/95 via-black/20 to-transparent"></div>
-                    ${meta.channel ? `<div class="network-badge">${meta.channel}</div>` : ''}
-                    <div id="badge-${item.identifier}" class="status-badge status-checking">Scan</div>
+                    ${meta.channel ? `<div class="network-badge ${isRussian ? 'ru' : ''}">${meta.channel}</div>` : ''}
                     <div class="absolute bottom-0 left-0 right-0 p-3 z-10">
                         <h4 class="card-title-overlay text-white uppercase tracking-tight">${meta.showName}</h4>
                         <p class="card-subtitle-overlay">${meta.dateTime}</p>
                     </div>
                 `;
-                card.onclick = () => {
-                    const info = state.itemCache.get(item.identifier);
-                    if (info?.status === 'ready') loadPlayer(item);
-                    else window.open(`https://archive.org/details/${item.identifier}`, '_blank');
-                };
+                card.onclick = () => loadPlayer(item);
                 grid.appendChild(card);
             });
             const pag = document.getElementById('pagination');
@@ -505,39 +386,64 @@
             document.getElementById('archive-link').href = `https://archive.org/details/${item.identifier}`;
             const meta = parseMetadata(item.title);
             document.getElementById('p-title').innerText = meta.showName;
-            document.getElementById('p-subtitle').innerText = `${meta.channel} • ${meta.dateTime}`;
-            const info = state.itemCache.get(item.identifier);
-            state.totalDuration = parseInt(info.length) || 3600;
-            const list = document.getElementById('seg-list');
-            const markers = document.getElementById('seekbar-markers');
-            list.innerHTML = ''; markers.innerHTML = '';
-            state.activeSegments = [];
-            for (let i = 0; i < state.totalDuration; i += SEGMENT_LIMIT) {
-                const start = i, end = Math.min(i + SEGMENT_LIMIT, state.totalDuration);
-                const idx = state.activeSegments.length;
-                state.activeSegments.push({ start, end });
-                const btn = document.createElement('button');
-                btn.className = "seg-btn w-full text-left p-3 rounded-xl bg-slate-800/30 border border-slate-800 hover:border-blue-500/50 flex justify-between items-center transition-all group";
-                if (i === 0) btn.classList.add('active');
-                btn.innerHTML = `<span class="text-[10px] font-black text-slate-400 group-hover:text-white">PART ${idx + 1}</span><span class="mono text-[9px] text-slate-600 group-hover:text-blue-400">${formatHMS(start)}</span>`;
-                btn.onclick = () => { updateActiveSegmentUI(idx); playSegment(start, end); };
-                list.appendChild(btn);
-                const m = document.createElement('div');
-                m.className = 'segment-marker';
-                m.style.left = `${(i / state.totalDuration) * 100}%`;
-                markers.appendChild(m);
+            document.getElementById('p-subtitle').innerText = "Fetching media...";
+
+            try {
+                const res = await fetch(`${API_METADATA}${item.identifier}`);
+                const data = await res.json();
+                const mp4 = (data.files || []).find(f => f.name.endsWith('.mp4') && f.source !== 'metadata' && !f.name.includes('_thumb'));
+                
+                if (!mp4) {
+                    document.getElementById('p-subtitle').innerText = "Error: This is a stub or has no MP4 stream.";
+                    return;
+                }
+
+                state.currentVideoFile = mp4.name;
+                state.totalDuration = parseInt(mp4.length) || 3600;
+                document.getElementById('p-subtitle').innerText = `${meta.channel} • ${meta.dateTime}`;
+
+                const list = document.getElementById('seg-list');
+                const markers = document.getElementById('seekbar-markers');
+                list.innerHTML = ''; markers.innerHTML = '';
+                state.activeSegments = [];
+
+                for (let i = 0; i < state.totalDuration; i += SEGMENT_LIMIT) {
+                    const start = i, end = Math.min(i + SEGMENT_LIMIT, state.totalDuration);
+                    const idx = state.activeSegments.length;
+                    state.activeSegments.push({ start, end });
+                    const btn = document.createElement('button');
+                    btn.className = "seg-btn w-full text-left p-3 rounded-xl bg-slate-800/30 border border-slate-800 hover:border-blue-500/50 flex justify-between items-center transition-all group";
+                    if (i === 0) btn.classList.add('active');
+                    btn.innerHTML = `<span class="text-[10px] font-black text-slate-400 group-hover:text-white">PART ${idx + 1}</span><span class="mono text-[9px] text-slate-600 group-hover:text-blue-400">${formatHMS(start)}</span>`;
+                    btn.onclick = () => { updateActiveSegmentUI(idx); playSegment(start, end); };
+                    list.appendChild(btn);
+                    const m = document.createElement('div');
+                    m.className = 'segment-marker';
+                    m.style.left = `${(i / state.totalDuration) * 100}%`;
+                    markers.appendChild(m);
+                }
+                playSegment(0, Math.min(SEGMENT_LIMIT, state.totalDuration));
+            } catch (e) {
+                console.error(e);
+                document.getElementById('p-subtitle').innerText = "Failed to load metadata.";
             }
-            playSegment(0, Math.min(SEGMENT_LIMIT, state.totalDuration));
         }
 
         function playSegment(start, end, seekTo = 0) {
-            const info = state.itemCache.get(state.activeId);
-            if (!info || !state.player) return;
+            if (!state.currentVideoFile || !state.player) return;
             state.currentStartTime = start;
-            const url = `${DOWNLOAD_BASE}${state.activeId}/${encodeURIComponent(info.file)}?start=${start}&end=${end}`;
+            
+            const fileEncoded = encodeURIComponent(state.currentVideoFile);
+            const url = `${DOWNLOAD_BASE}${state.activeId}/${fileEncoded}?start=${start}&end=${end}&ignore=x.mp4`;
+            
+            state.player.pause();
             state.player.src({ src: url, type: 'video/mp4' });
-            state.player.currentTime(seekTo);
-            state.player.play();
+            state.player.load();
+            
+            state.player.one('canplay', () => {
+                if (seekTo > 0) state.player.currentTime(seekTo);
+                state.player.play().catch(e => console.warn("Autoplay blocked", e));
+            });
         }
 
         function showView(v) {
