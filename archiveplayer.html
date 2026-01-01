@@ -15,50 +15,84 @@
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
         .player-aspect { aspect-ratio: 16 / 9; background: #000; }
+        
         .vjs-progress-control, .vjs-remaining-time, .vjs-current-time, .vjs-duration-display, .vjs-time-divider { display: none !important; }
+        
         .card-title-overlay { font-size: 0.75rem; font-weight: 800; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-shadow: 0 2px 4px rgba(0,0,0,0.8); text-transform: uppercase; }
         .card-subtitle-overlay { font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; font-weight: 500; color: #94a3b8; margin-top: 4px; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; letter-spacing: 0.025em; }
         .network-badge { position: absolute; top: 6px; left: 6px; font-size: 8px; font-weight: 900; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; z-index: 20; letter-spacing: 0.05em; background: rgba(37, 99, 235, 0.9); color: white; backdrop-filter: blur(4px); box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
         .network-badge.ru { background: rgba(220, 38, 38, 0.9); }
+        
         .global-seekbar-container { height: 14px; background: #1e293b; border-radius: 7px; position: relative; cursor: pointer; overflow: hidden; border: 1px solid #334155; transition: all 0.2s ease; }
-        .global-seekbar-container:hover { border-color: #475569; background: #232f42; }
         .global-seekbar-fill { height: 100%; background: linear-gradient(to right, #2563eb, #3b82f6); width: 0%; transition: width 0.1s linear; }
         .segment-marker { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(255, 255, 255, 0.25); pointer-events: none; }
-        .seg-btn.active { border-color: #3b82f6; background: rgba(59, 130, 246, 0.1); }
+        
+        .seg-btn.active { border-color: #3b82f6; background: rgba(59, 130, 246, 0.15); }
+        .seg-btn.active .seg-label { color: #60a5fa; }
+        
         .endpoint-bar { background: #020617; border-bottom: 1px solid #1e293b; padding: 4px 24px; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #475569; display: flex; align-items: center; gap: 12px; overflow: hidden; white-space: nowrap; }
+        
+        .dropdown-menu { position: absolute; right: 0; mt: 8px; width: 220px; background: #0f172a; border: 1px solid #334155; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); z-index: 60; overflow: hidden; }
+
+        .toggle-btn.active { background-color: #ef4444; border-color: #ef4444; color: white; }
     </style>
 </head>
 <body class="min-h-screen">
     <header class="sticky top-0 z-50 bg-slate-900/95 backdrop-blur-md border-b border-slate-800/60 shadow-xl">
         <div class="max-w-[1800px] mx-auto">
-            <div class="flex items-center gap-4 p-3 px-6">
+            <div class="flex items-center gap-3 p-3 px-6">
                 <div class="flex items-center gap-2 shrink-0 cursor-pointer" onclick="location.reload()">
                     <div class="bg-blue-600 p-1.5 rounded-lg text-white">
                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                     </div>
-                    <h1 class="hidden md:block text-sm font-black tracking-tighter uppercase">ARCHIVE<span class="text-blue-500">EXPLORER</span></h1>
+                    <h1 class="hidden lg:block text-sm font-black tracking-tighter uppercase">ARCHIVE<span class="text-blue-500">EXPLORER</span></h1>
                 </div>
-                <div class="relative flex-1 max-w-xl">
-                    <input type="text" id="searchInput" placeholder="Search global news archives..." onkeydown="if(event.key==='Enter') resetAndSearch()" class="w-full bg-slate-800/50 border border-slate-700/50 rounded-full py-2 pl-10 pr-4 focus:ring-1 focus:ring-blue-500 outline-none text-xs font-medium transition-all">
+                
+                <div class="relative flex-1 max-w-md">
+                    <input type="text" id="searchInput" placeholder="Search keywords..." onkeydown="if(event.key==='Enter') resetAndSearch()" class="w-full bg-slate-800/50 border border-slate-700/50 rounded-full py-2 pl-10 pr-4 focus:ring-1 focus:ring-blue-500 outline-none text-xs font-medium transition-all">
                 </div>
-                <div class="relative group">
-                    <button id="network-btn" onclick="toggleDropdown()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-full py-2 px-3 flex items-center gap-1.5 transition-all">
-                        <span class="text-[9px] font-black uppercase tracking-tight text-slate-300">Channels</span>
-                        <span id="network-count" class="bg-blue-600 text-[8px] px-1.5 py-0.5 rounded-md text-white font-bold">All</span>
-                        <svg class="w-3 h-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+
+                <div class="flex items-center gap-2">
+                    <!-- Blacklist Toggle -->
+                    <button id="blacklist-toggle" onclick="toggleBlacklist()" class="toggle-btn bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-full py-2 px-3 flex items-center gap-1.5 transition-all text-slate-400">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path></svg>
+                        <span class="text-[9px] font-black uppercase tracking-tight">Show All</span>
                     </button>
-                    <div id="network-dropdown" class="absolute right-0 mt-2 w-48 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl hidden z-[60] overflow-hidden">
-                        <div class="px-2 py-2 border-b border-slate-800 flex items-center justify-around bg-slate-950/50">
-                            <button onclick="setAllStations(true)" class="text-[9px] font-black uppercase text-blue-500 hover:text-blue-400">All</button>
-                            <div class="w-px h-3 bg-slate-800"></div>
-                            <button onclick="setAllStations(false)" class="text-[9px] font-black uppercase text-slate-500 hover:text-slate-400">None</button>
+
+                    <div class="relative">
+                        <button id="network-btn" onclick="toggleDropdown('network-dropdown')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-full py-2 px-3 flex items-center gap-1.5 transition-all">
+                            <span class="text-[9px] font-black uppercase tracking-tight text-slate-300">Channels</span>
+                            <span id="network-count" class="bg-blue-600 text-[8px] px-1.5 py-0.5 rounded-md text-white font-bold">...</span>
+                            <svg class="w-3 h-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </button>
+                        <div id="network-dropdown" class="dropdown-menu hidden">
+                            <div class="px-2 py-2 border-b border-slate-800 flex items-center justify-around bg-slate-950/50">
+                                <button onclick="setAllStations(true)" class="text-[9px] font-black uppercase text-blue-500 hover:text-blue-400">All</button>
+                                <div class="w-px h-3 bg-slate-800"></div>
+                                <button onclick="setAllStations(false)" class="text-[9px] font-black uppercase text-slate-500 hover:text-slate-400">None</button>
+                            </div>
+                            <div id="network-options-container" class="p-1 space-y-1 max-h-[400px] overflow-y-auto custom-scrollbar"></div>
                         </div>
-                        <div id="network-options-container" class="p-1 space-y-1 max-h-[400px] overflow-y-auto custom-scrollbar"></div>
+                    </div>
+
+                    <div class="relative">
+                        <button id="show-filter-btn" onclick="toggleDropdown('show-dropdown')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-full py-2 px-3 flex items-center gap-1.5 transition-all">
+                            <span class="text-[9px] font-black uppercase tracking-tight text-slate-300">Show</span>
+                            <span id="show-current" class="text-[9px] font-bold text-blue-400 uppercase truncate max-w-[60px]">All</span>
+                            <svg class="w-3 h-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </button>
+                        <div id="show-dropdown" class="dropdown-menu hidden">
+                            <div class="px-3 py-2 border-b border-slate-800 bg-slate-950/50">
+                                <span class="text-[8px] font-black text-slate-500 uppercase tracking-widest">Select Program</span>
+                            </div>
+                            <div id="show-options-container" class="p-1 space-y-1 max-h-[400px] overflow-y-auto custom-scrollbar">
+                                <button onclick="filterByShow('All')" class="w-full text-left px-3 py-2 rounded-md text-[9px] font-black uppercase tracking-tight text-blue-400 hover:bg-slate-800">All Programs</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <div class="flex items-center gap-4">
-                    <button onclick="resetAndSearch()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all">Scan</button>
-                </div>
+
+                <button onclick="resetAndSearch()" class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all">Scan</button>
             </div>
         </div>
         <div class="endpoint-bar">
@@ -84,10 +118,16 @@
                     <svg class="w-4 h-4 transition-transform group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M15 19l-7-7 7-7"></path></svg>
                     <span class="text-[10px] font-black uppercase tracking-widest">Back to Grid</span>
                 </button>
-                <a id="archive-link" href="#" target="_blank" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all">
-                    <span>View Archive Page</span>
-                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
-                </a>
+                <div class="flex gap-2">
+                    <button onclick="toggleFullscreen()" class="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white border border-blue-400/20 px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
+                        <span>Fullscreen</span>
+                    </button>
+                    <a id="archive-link" href="#" target="_blank" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all">
+                        <span>View Archive</span>
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                    </a>
+                </div>
             </div>
             <div class="grid lg:grid-cols-12 gap-8">
                 <div class="lg:col-span-8 space-y-4">
@@ -96,7 +136,7 @@
                     </div>
                     <div class="space-y-2 bg-slate-900/40 p-4 rounded-2xl border border-slate-800/50">
                         <div class="flex justify-between items-center px-1">
-                            <span class="text-[9px] font-black text-slate-500 uppercase tracking-widest">Master Timeline (Synced)</span>
+                            <span class="text-[9px] font-black text-slate-500 uppercase tracking-widest">Broadcast Timeline</span>
                             <span id="global-time-display" class="text-[10px] font-bold text-blue-400 mono tracking-wider">00:00:00 / 00:00:00</span>
                         </div>
                         <div id="global-seekbar" class="global-seekbar-container" onclick="handleGlobalSeek(event)">
@@ -123,11 +163,16 @@
         const SEGMENT_LIMIT = 300; 
 
         const CHANNEL_MAP = {
-            "CNNW": "CNN", "FOXNEWSW": "FOX NEWS", "MSNOW": "MSNBC", "CNBC": "CNBC", "BLOOMBERG": "BLOOMBERG",
+            "CNNW": "CNN", "FOXNEWSW": "FOX NEWS", "MSNOW": "MS NOW", "CNBC": "CNBC", "BLOOMBERG": "BLOOMBERG",
             "FBC": "FOX BIZ", "COM": "COMEDY", "CSPAN": "C-SPAN 1", "CSPAN2": "C-SPAN 2", "CSPAN3": "C-SPAN 3",
             "KNTV": "NBC", "KTVU": "FOX 2", "KPIX": "CBS", "KGO": "ABC", "KQED": "PBS",
             "1TV": "CHANNEL 1 (RU)", "RUSSIA1": "RUSSIA 1 (RU)", "RUSSIA24": "RUSSIA 24 (RU)", "NTV": "NTV (RU)"
         };
+
+        const EXCLUDED_KEYWORDS = [
+            "bay area", "news at", "the bay", "abc7", "eyewitness", 
+            "action news", "local news", "news at", "news @"
+        ];
 
         const US_STATIONS = [
             "TV-CNNW", "TV-FOXNEWSW", "TV-MSNOW", "TV-CNBC", "TV-BLOOMBERG",
@@ -135,68 +180,52 @@
             "TV-KNTV", "TV-KTVU", "TV-KPIX", "TV-KGO", "TV-KQED"
         ];
 
-        const RU_STATIONS = [
-            "TV-1TV", "TV-RUSSIA1", "TV-RUSSIA24", "TV-NTV"
-        ];
+        const OFF_BY_DEFAULT = ["TV-CSPAN", "TV-CSPAN2", "TV-CSPAN3", "TV-1TV", "TV-RUSSIA1", "TV-RUSSIA24", "TV-NTV"];
+        const RU_STATIONS = ["TV-1TV", "TV-RUSSIA1", "TV-RUSSIA24", "TV-NTV"];
         
-        const ALL_STATIONS = [...US_STATIONS, ...RU_STATIONS];
-
         let state = {
             page: 1, player: null, activeId: null,
             currentStartTime: 0,
             activeSegments: [],
             totalDuration: 0,
-            currentVideoFile: null
+            currentVideoFile: null,
+            rawResults: [], 
+            activeShowFilter: 'All',
+            ignoreBlacklist: false
         };
 
         window.onload = () => {
             initStationDropdown();
             initPlayer();
-            handleUrlParams(); 
             resetAndSearch();
+            
             document.addEventListener('click', (e) => {
-                const btn = document.getElementById('network-btn');
-                const menu = document.getElementById('network-dropdown');
-                if (btn && menu && !btn.contains(e.target) && !menu.contains(e.target)) menu.classList.add('hidden');
+                const menus = ['network-dropdown', 'show-dropdown'];
+                const btns = ['network-btn', 'show-filter-btn'];
+                menus.forEach((mId, idx) => {
+                    const menu = document.getElementById(mId);
+                    const btn = document.getElementById(btns[idx]);
+                    if (menu && !menu.classList.contains('hidden') && !menu.contains(e.target) && !btn.contains(e.target)) {
+                        menu.classList.add('hidden');
+                    }
+                });
             });
         };
 
-        function handleUrlParams() {
-            let searchStr = "";
-            try {
-                // Try to get from parent if in an iframe, otherwise from local
-                searchStr = window.location.search || (window.parent !== window ? window.parent.location.search : "");
-            } catch (e) {
-                // Browser security might block window.parent.location access
-                searchStr = window.location.search;
-            }
-
-            const params = new URLSearchParams(searchStr);
-            const chan = params.get('chan');
-            const q = params.get('q');
-
-            if (chan) {
-                const requested = chan.split(',').map(c => c.trim().toUpperCase());
-                document.querySelectorAll('.station-checkbox').forEach(cb => {
-                    const cleanValue = cb.value.replace('TV-', '').toUpperCase();
-                    cb.checked = requested.includes(cleanValue);
-                });
-                updateNetworkSelection(false); 
-            }
-
-            if (q) {
-                const searchInput = document.getElementById('searchInput');
-                if (searchInput) searchInput.value = q;
-            }
+        function toggleBlacklist() {
+            state.ignoreBlacklist = !state.ignoreBlacklist;
+            const btn = document.getElementById('blacklist-toggle');
+            btn.classList.toggle('active', state.ignoreBlacklist);
+            btn.querySelector('span').innerText = state.ignoreBlacklist ? "Showing All" : "Hide News";
+            renderGrid(true); // Re-render everything to update show list and grid
         }
 
-        function updateUrl() {
-            // NOTE: In the current sandboxed environment, window.history.replaceState causes a SecurityError.
-            // We've disabled this update to prevent app crashes.
-            // Parameters are still respected on initial load.
+        function toggleDropdown(id) { 
+            const el = document.getElementById(id);
+            const isHidden = el.classList.contains('hidden');
+            document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.add('hidden'));
+            if (isHidden) el.classList.remove('hidden');
         }
-
-        function toggleDropdown() { document.getElementById('network-dropdown').classList.toggle('hidden'); }
         
         function getPrettyName(technicalName) {
             const clean = technicalName.replace('TV-', '').trim().toUpperCase();
@@ -205,40 +234,37 @@
 
         function initStationDropdown() {
             const container = document.getElementById('network-options-container');
-            
             const createHeading = (text) => {
                 const div = document.createElement('div');
                 div.className = "px-2.5 py-1 text-[8px] font-black text-slate-600 uppercase tracking-widest mt-2 bg-slate-950/30";
                 div.innerText = text;
                 return div;
             };
-
             container.appendChild(createHeading("United States"));
             US_STATIONS.forEach(s => container.appendChild(createStationElement(s)));
-
             container.appendChild(createHeading("Russian Federation"));
             RU_STATIONS.forEach(s => container.appendChild(createStationElement(s, true)));
-
-            updateNetworkSelection(false);
+            updateNetworkSelection();
         }
 
         function createStationElement(s, isRu = false) {
             const labelName = getPrettyName(s);
+            const isChecked = !OFF_BY_DEFAULT.includes(s);
             const div = document.createElement('label');
             div.className = "flex items-center justify-between py-1.5 px-2.5 rounded-md cursor-pointer hover:bg-slate-800 transition-colors group border border-transparent hover:border-slate-700/50";
             div.innerHTML = `
                 <span class="text-[9px] font-black uppercase tracking-tight text-slate-500 group-hover:text-blue-400 whitespace-nowrap overflow-visible">${labelName}</span>
-                <input type="checkbox" value="${s}" checked onchange="updateNetworkSelection(true)" class="station-checkbox w-3.5 h-3.5 accent-blue-600 rounded">
+                <input type="checkbox" value="${s}" ${isChecked ? 'checked' : ''} onchange="updateNetworkSelection()" class="station-checkbox w-3.5 h-3.5 accent-blue-600 rounded">
             `;
             return div;
         }
 
         function setAllStations(checked) {
             document.querySelectorAll('.station-checkbox').forEach(cb => cb.checked = checked);
-            updateNetworkSelection(true);
+            updateNetworkSelection();
         }
 
-        function updateNetworkSelection(shouldUpdateUrl = true) {
+        function updateNetworkSelection() {
             const checked = document.querySelectorAll('.station-checkbox:checked').length;
             const total = document.querySelectorAll('.station-checkbox').length;
             const countDisplay = document.getElementById('network-count');
@@ -247,7 +273,6 @@
                 else if (checked === 0) countDisplay.innerText = 'None';
                 else countDisplay.innerText = checked;
             }
-            if (shouldUpdateUrl) updateUrl();
         }
 
         function initPlayer() {
@@ -275,10 +300,10 @@
             if (display) display.innerText = `${formatHMS(globalTime)} / ${formatHMS(state.totalDuration)}`;
         }
 
-        function handleGlobalSeek(e) {
+        function handleGlobalSeek(event) {
             if (!state.totalDuration) return;
-            const rect = e.currentTarget.getBoundingClientRect();
-            const clickedTime = ((e.clientX - rect.left) / rect.width) * state.totalDuration;
+            const rect = event.currentTarget.getBoundingClientRect();
+            const clickedTime = ((event.clientX - rect.left) / rect.width) * state.totalDuration;
             const segmentIndex = Math.floor(clickedTime / SEGMENT_LIMIT);
             const seg = state.activeSegments[segmentIndex] || state.activeSegments[state.activeSegments.length - 1];
             if (!seg) return;
@@ -292,9 +317,11 @@
 
         async function resetAndSearch() {
             state.page = 1;
+            state.rawResults = [];
+            state.activeShowFilter = 'All';
+            document.getElementById('show-current').innerText = 'All';
             const grid = document.getElementById('results-grid');
             if (grid) grid.innerHTML = '';
-            updateUrl(); 
             search();
         }
 
@@ -317,49 +344,93 @@
             if (userQuery) q += ` AND (title:(${userQuery}) OR description:(${userQuery}))`;
 
             const params = new URLSearchParams({
-                q, 'fl[]': ['identifier', 'title', 'date'], 'sort[]': 'publicdate desc', rows: 40, page: state.page, output: 'json'
+                q, 'fl[]': ['identifier', 'title', 'date'], 'sort[]': 'publicdate desc', rows: 80, page: state.page, output: 'json'
             });
             const fullUrl = `${API_SEARCH}?${params.toString()}`;
             document.getElementById('endpoint-display').innerText = fullUrl;
+            
             try {
                 const res = await fetch(fullUrl);
                 const data = await res.json();
-                renderGrid(data.response.docs);
+                const newDocs = data.response.docs;
+                state.rawResults = state.page === 1 ? newDocs : [...state.rawResults, ...newDocs];
+                
+                renderGrid();
             } catch (e) { console.error(e); } finally { if (loader) loader.classList.add('hidden'); }
         }
 
         function parseMetadata(title) {
             let primaryTitle = ""; let channel = ""; let dateTimeStr = "";
-            const timeRangeRegex = /(\d{1,2}:\d{2}(?:am|pm)-\d{1,2}:\d{2}(?:am|pm)\s*[A-Z]{0,4})/i;
-            const timeMatch = title.match(timeRangeRegex);
-            let extractedTimeRange = timeMatch ? timeMatch[0].trim() : "";
-
-            if (title.includes(" : ")) {
-                const parts = title.split(" : ");
-                if (parts.length >= 3) {
-                    primaryTitle = parts[0].trim();
-                    channel = getPrettyName(parts[1].trim());
-                    dateTimeStr = parts.slice(2).join(" : ").trim();
-                } else if (parts.length === 2) {
-                    channel = getPrettyName(parts[0].trim());
-                    const datePart = parts[1].trim();
-                    if (extractedTimeRange) { primaryTitle = extractedTimeRange; dateTimeStr = datePart.replace(new RegExp(extractedTimeRange, 'i'), '').trim(); }
-                    else { primaryTitle = datePart; dateTimeStr = ""; }
-                }
+            const parts = title.split(" : ");
+            if (parts.length >= 3) {
+                primaryTitle = parts[0].trim();
+                channel = getPrettyName(parts[1].trim());
+                dateTimeStr = parts.slice(2).join(" : ").trim();
+            } else if (parts.length === 2) {
+                channel = getPrettyName(parts[0].trim());
+                primaryTitle = parts[1].trim();
             } else { primaryTitle = title; }
             return { showName: primaryTitle.replace(/_/g, ' '), channel, dateTime: dateTimeStr };
         }
 
-        function renderGrid(items) {
-            const grid = document.getElementById('results-grid');
-            if (state.page === 1) grid.innerHTML = '';
+        function isExcluded(title) {
+            if (state.ignoreBlacklist) return false;
+            const lowerTitle = title.toLowerCase();
+            return EXCLUDED_KEYWORDS.some(kw => lowerTitle.includes(kw));
+        }
+
+        function updateShowFilterDropdown(validShows) {
+            const container = document.getElementById('show-options-container');
+            container.innerHTML = `<button onclick="filterByShow('All')" class="w-full text-left px-3 py-2 rounded-md text-[9px] font-black uppercase tracking-tight text-blue-400 hover:bg-slate-800">All Programs</button>`;
             
-            if (items.length === 0 && state.page === 1) {
-                grid.innerHTML = '<div class="col-span-full py-20 text-center text-slate-500 font-bold uppercase tracking-widest text-xs">No archives found</div>';
+            Array.from(validShows).sort().forEach(name => {
+                const btn = document.createElement('button');
+                btn.className = "w-full text-left px-3 py-2 rounded-md text-[9px] font-black uppercase tracking-tight text-slate-400 hover:text-white hover:bg-slate-800 truncate transition-colors";
+                btn.innerText = name;
+                btn.onclick = () => filterByShow(name);
+                container.appendChild(btn);
+            });
+        }
+
+        function filterByShow(showName) {
+            state.activeShowFilter = showName;
+            document.getElementById('show-current').innerText = showName;
+            document.getElementById('show-dropdown').classList.add('hidden');
+            renderGrid(false);
+        }
+
+        function renderGrid(recalcShowList = true) {
+            const grid = document.getElementById('results-grid');
+            grid.innerHTML = '';
+            
+            const validShows = new Set();
+            const keywordFiltered = state.rawResults.filter(item => !isExcluded(item.title));
+            
+            if (recalcShowList) {
+                keywordFiltered.forEach(item => {
+                    const meta = parseMetadata(item.title);
+                    if (meta.showName) validShows.add(meta.showName);
+                });
+                updateShowFilterDropdown(validShows);
+                
+                // If current selected show is no longer in valid list, reset to All
+                if (state.activeShowFilter !== 'All' && !validShows.has(state.activeShowFilter)) {
+                    state.activeShowFilter = 'All';
+                    document.getElementById('show-current').innerText = 'All';
+                }
+            }
+
+            let itemsToRender = keywordFiltered.filter(item => {
+                const meta = parseMetadata(item.title);
+                return (state.activeShowFilter === 'All' || meta.showName === state.activeShowFilter);
+            });
+
+            if (itemsToRender.length === 0) {
+                grid.innerHTML = '<div class="col-span-full py-20 text-center text-slate-500 font-bold uppercase tracking-widest text-xs">No programs found</div>';
                 return;
             }
 
-            items.forEach(item => {
+            itemsToRender.forEach(item => {
                 const meta = parseMetadata(item.title);
                 const isRussian = meta.channel.includes("(RU)");
                 const card = document.createElement('div');
@@ -376,8 +447,9 @@
                 card.onclick = () => loadPlayer(item);
                 grid.appendChild(card);
             });
+            
             const pag = document.getElementById('pagination');
-            if (pag) pag.classList.toggle('hidden', items.length < 30);
+            if (pag) pag.classList.toggle('hidden', state.rawResults.length < 30);
         }
 
         async function loadPlayer(item) {
@@ -394,7 +466,7 @@
                 const mp4 = (data.files || []).find(f => f.name.endsWith('.mp4') && f.source !== 'metadata' && !f.name.includes('_thumb'));
                 
                 if (!mp4) {
-                    document.getElementById('p-subtitle').innerText = "Error: This is a stub or has no MP4 stream.";
+                    document.getElementById('p-subtitle').innerText = "Error: Video stream unavailable.";
                     return;
                 }
 
@@ -411,12 +483,24 @@
                     const start = i, end = Math.min(i + SEGMENT_LIMIT, state.totalDuration);
                     const idx = state.activeSegments.length;
                     state.activeSegments.push({ start, end });
+                    
+                    const minutes = Math.floor(start / 60);
+                    const label = start === 0 ? "Start" : `${minutes} Minutes`;
+                    
                     const btn = document.createElement('button');
                     btn.className = "seg-btn w-full text-left p-3 rounded-xl bg-slate-800/30 border border-slate-800 hover:border-blue-500/50 flex justify-between items-center transition-all group";
                     if (i === 0) btn.classList.add('active');
-                    btn.innerHTML = `<span class="text-[10px] font-black text-slate-400 group-hover:text-white">PART ${idx + 1}</span><span class="mono text-[9px] text-slate-600 group-hover:text-blue-400">${formatHMS(start)}</span>`;
+                    btn.innerHTML = `
+                        <span class="seg-label text-[10px] font-black text-slate-400 group-hover:text-white uppercase tracking-tighter">
+                            ${label}
+                        </span>
+                        <span class="mono text-[9px] text-slate-600 group-hover:text-blue-400 font-bold">
+                            ${formatHMS(start)}
+                        </span>
+                    `;
                     btn.onclick = () => { updateActiveSegmentUI(idx); playSegment(start, end); };
                     list.appendChild(btn);
+                    
                     const m = document.createElement('div');
                     m.className = 'segment-marker';
                     m.style.left = `${(i / state.totalDuration) * 100}%`;
@@ -432,14 +516,11 @@
         function playSegment(start, end, seekTo = 0) {
             if (!state.currentVideoFile || !state.player) return;
             state.currentStartTime = start;
-            
             const fileEncoded = encodeURIComponent(state.currentVideoFile);
             const url = `${DOWNLOAD_BASE}${state.activeId}/${fileEncoded}?start=${start}&end=${end}&ignore=x.mp4`;
-            
             state.player.pause();
             state.player.src({ src: url, type: 'video/mp4' });
             state.player.load();
-            
             state.player.one('canplay', () => {
                 if (seekTo > 0) state.player.currentTime(seekTo);
                 state.player.play().catch(e => console.warn("Autoplay blocked", e));
@@ -450,6 +531,13 @@
             document.getElementById('search-view').classList.toggle('hidden', v !== 'search');
             document.getElementById('player-view').classList.toggle('hidden', v !== 'player');
             if (v === 'search' && state.player) state.player.pause();
+        }
+
+        function toggleFullscreen() {
+            if (state.player) {
+                if (state.player.isFullscreen()) state.player.exitFullscreen();
+                else state.player.requestFullscreen();
+            }
         }
 
         function formatHMS(s) {
