@@ -108,6 +108,12 @@
             background: rgba(37, 99, 235, 1);
             transform: scale(1.1);
         }
+
+        .seg-btn-active {
+            border-color: #2563eb !important;
+            color: #fff !important;
+            background: #1e293b !important;
+        }
     </style>
 </head>
 <body class="h-screen flex flex-col hide-noise">
@@ -248,7 +254,7 @@
             API_META: 'https://archive.org/metadata/',
             DL_BASE: 'https://archive.org/download/',
             POSTER_JSON: 'https://raw.githubusercontent.com/watermoufjunk/watermoufjunk.github.io/refs/heads/main/archive_news_player/test.json',
-            SEGMENT_LENGTH: 300,
+            SEGMENT_LENGTH: 300, // 5 minutes
             PAGE_SIZE: 100,
             STATIONS: {
                 "CNNW": "CNN", "FOXNEWSW": "FOX NEWS", "MSNOW": "MS NBC", "CNBC": "CNBC", 
@@ -277,10 +283,9 @@
             await loadPosterArt();
             resetAndSearch();
 
-            // Handle browser back button
             window.onpopstate = (event) => {
                 if (state.isPlayerOpen) {
-                    closePlayer(false); // Close without triggering history again
+                    closePlayer(false);
                 }
             };
         };
@@ -492,7 +497,6 @@
             state.activeId = id;
             state.isPlayerOpen = true;
             
-            // Push history state so back button works as expected
             history.pushState({ playerOpen: true }, "");
 
             const m = parseMeta(title);
@@ -513,10 +517,12 @@
                 if (!videoFile) return;
                 state.file = videoFile.name;
                 state.duration = parseInt(videoFile.length || 3600);
+                
                 const segList = document.getElementById('seg-list');
                 segList.innerHTML = '';
                 for (let min = 0; min <= Math.floor(state.duration/60); min += 5) {
                     const btn = document.createElement('button');
+                    btn.id = `seg-btn-${min * 60}`;
                     btn.className = "px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-[10px] font-black text-slate-400 mono hover:border-blue-500 hover:text-white transition-all";
                     btn.innerText = `${min}m`;
                     btn.onclick = () => playSeg(min * 60, 0);
@@ -531,20 +537,34 @@
             const endSeconds = Math.min(startSeconds + CONFIG.SEGMENT_LENGTH, state.duration);
             const source = `${CONFIG.DL_BASE}${state.activeId}/${encodeURIComponent(state.file)}?start=${startSeconds}&end=${endSeconds}`;
             
+            // Highlight active segment button
+            document.querySelectorAll('#seg-list button').forEach(b => b.classList.remove('seg-btn-active'));
+            const activeBtn = document.getElementById(`seg-btn-${startSeconds}`);
+            if (activeBtn) activeBtn.classList.add('seg-btn-active');
+
             if (state.video.src !== source) {
                 state.video.src = source;
                 state.video.load();
                 
-                const seekToOffset = () => {
+                const onLoaded = () => {
                     state.video.currentTime = offsetInSegment;
                     state.video.play().catch(() => {});
-                    state.video.removeEventListener('loadedmetadata', seekToOffset);
+                    state.video.removeEventListener('loadedmetadata', onLoaded);
                 };
-                state.video.addEventListener('loadedmetadata', seekToOffset);
+                state.video.addEventListener('loadedmetadata', onLoaded);
             } else {
                 state.video.currentTime = offsetInSegment;
             }
             updatePlayPauseUI(true);
+        }
+
+        function queueNextSegment() {
+            const nextStart = state.currentStart + CONFIG.SEGMENT_LENGTH;
+            if (nextStart < state.duration) {
+                playSeg(nextStart, 0);
+            } else {
+                updatePlayPauseUI(false);
+            }
         }
 
         function togglePlayPause() {
@@ -563,8 +583,12 @@
                 ['ctrl-play-icon', 'ctrl-pause-icon']
             ];
             elements.forEach(([playId, pauseId]) => {
-                document.getElementById(playId).classList.toggle('hidden', isPlaying);
-                document.getElementById(pauseId).classList.toggle('hidden', !isPlaying);
+                const playEl = document.getElementById(playId);
+                const pauseEl = document.getElementById(pauseId);
+                if (playEl && pauseEl) {
+                    playEl.classList.toggle('hidden', isPlaying);
+                    pauseEl.classList.toggle('hidden', !isPlaying);
+                }
             });
         }
 
@@ -578,7 +602,21 @@
         }
 
         function setupPlayerEvents() {
+            // Auto-advance when the segment reaches the end
+            state.video.addEventListener('ended', () => {
+                queueNextSegment();
+            });
+
+            // Smooth handoff check: If we are within 1 second of the end of the segment, move to next
+            // This prevents the player from hanging on the last frame before 'ended' triggers
             state.video.addEventListener('timeupdate', () => {
+                const timeLeft = state.video.duration - state.video.currentTime;
+                
+                // Only trigger if we are playing and close to the end
+                if (!state.video.paused && state.video.duration > 0 && timeLeft < 0.3) {
+                    queueNextSegment();
+                }
+
                 const currentGlobal = state.currentStart + state.video.currentTime;
                 const progress = (currentGlobal / state.duration) * 100;
                 const fill = document.getElementById('global-progress');
@@ -595,7 +633,6 @@
             document.getElementById('player-view').classList.add('hidden');
             document.getElementById('main-header').classList.remove('hidden');
             
-            // If the user clicked the UI "Go Back" button, we need to pop the state manually
             if (triggerHistory && history.state?.playerOpen) {
                 history.back();
             }
@@ -612,8 +649,11 @@
             const rect = e.currentTarget.getBoundingClientRect();
             const pct = (e.clientX - rect.left) / rect.width;
             const absoluteSeconds = state.duration * pct;
+            
+            // Find the nearest 5-minute segment start
             const segmentStart = Math.floor(absoluteSeconds / CONFIG.SEGMENT_LENGTH) * CONFIG.SEGMENT_LENGTH;
             const offsetInSegment = absoluteSeconds - segmentStart;
+            
             playSeg(segmentStart, offsetInSegment);
         }
     </script>
