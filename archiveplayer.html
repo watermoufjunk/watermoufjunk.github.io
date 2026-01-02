@@ -31,7 +31,7 @@
 
         .player-container {
             width: 100%;
-            aspect-ratio: 16 / 9; /* Lock container to modern broadcast aspect */
+            aspect-ratio: 16 / 9;
             background: #000;
             border-radius: 12px;
             overflow: hidden; 
@@ -49,18 +49,14 @@
             width: 100%;
             height: 100%;
             display: block;
-            object-fit: contain; /* Default: show everything */
+            object-fit: contain;
             background: black;
             transition: all 0.2s ease-out;
         }
-
-        /* THE SNAP FIX: 
-           Forces the 4:3 content with bars to "Fill" the 16:9 container,
-           effectively cropping the horizontal bars by snapping to edges.
-        */
+x
         video.zoom-active {
             object-fit: cover; 
-            transform: scale(1.00); /* Slight extra nudge to ensure no sub-pixel gaps */
+            transform: scale(1.02);
         }
 
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
@@ -102,6 +98,20 @@
             border-radius: 50%;
             background: #2563eb;
             cursor: pointer;
+        }
+
+        .api-address-bar {
+            background: #020617;
+            border: 1px solid #1e293b;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            color: #94a3b8;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
         }
     </style>
 </head>
@@ -145,6 +155,15 @@
 
     <main id="search-view" class="flex-1 custom-scrollbar">
         <div class="max-w-[1600px] mx-auto p-6">
+            <!-- RESTORED ADDRESS BAR -->
+            <div class="api-address-bar">
+                <span class="text-blue-500 font-black px-1.5 py-0.5 bg-blue-500/10 rounded">GET</span>
+                <span id="current-api-url" class="truncate opacity-80">Waiting for query...</span>
+                <button onclick="copyApiUrl()" class="ml-auto hover:text-white transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                </button>
+            </div>
+
             <div id="results-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4"></div>
             <div id="loader" class="py-20 text-center hidden">
                 <div class="inline-block animate-spin rounded-full h-10 w-10 border-4 border-blue-500/20 border-t-blue-500"></div>
@@ -336,11 +355,24 @@
             
             const params = new URLSearchParams({ q, 'fl[]': ['identifier', 'title', 'date'], sort: 'publicdate desc', rows: CONFIG.PAGE_SIZE, page: state.page, output: 'json' });
             
+            const fullUrl = `${CONFIG.API_SEARCH}?${params}`;
+            document.getElementById('current-api-url').innerText = fullUrl;
+            
             try {
-                const res = await fetch(`${CONFIG.API_SEARCH}?${params}`);
+                const res = await fetch(fullUrl);
                 const data = await res.json();
                 renderItems(data.response.docs);
             } catch (e) { console.error(e); } finally { loader.classList.add('hidden'); }
+        }
+
+        function copyApiUrl() {
+            const url = document.getElementById('current-api-url').innerText;
+            const el = document.createElement('textarea');
+            el.value = url;
+            document.body.appendChild(el);
+            el.select();
+            document.execCommand('copy');
+            document.body.removeChild(el);
         }
 
         function renderItems(docs) {
