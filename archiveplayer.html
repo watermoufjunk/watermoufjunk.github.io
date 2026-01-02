@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Archive Explorer - Global Native</title>
+    <title>Archive Explorer</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&family=JetBrains+Mono:wght@500;700&display=swap');
@@ -18,58 +18,54 @@
         body { font-family: 'Inter', sans-serif; background-color: var(--bg-main); color: #f8fafc; overflow: hidden; }
         .mono { font-family: 'JetBrains Mono', monospace; }
         
-        /* Search view height calculation */
-        #search-view { height: calc(100vh - 120px); overflow-y: auto; }
+        #search-view { height: calc(100vh - 80px); overflow-y: auto; }
 
-        /* Player Viewport setup */
         .player-viewport {
             height: 100vh;
             display: flex;
             flex-direction: column;
-            padding: 1.5rem;
+            padding: 1rem;
+            max-width: 1100px; 
+            margin: 0 auto;
         }
 
-        .video-column {
-            display: flex;
-            flex-direction: column;
-            min-height: 0; 
-        }
-
-        /* Fixed aspect ratio container that ensures the video is never cut off */
         .player-container {
-            position: relative;
             width: 100%;
+            aspect-ratio: 16 / 9; /* Lock container to modern broadcast aspect */
             background: #000;
             border-radius: 12px;
-            overflow: hidden;
+            overflow: hidden; 
             border: 1px solid #1e293b;
-            aspect-ratio: 16 / 9;
+            flex-shrink: 0;
+            box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.7);
             display: flex;
-            align-items: center;
+            align-items: center; 
             justify-content: center;
-            flex-shrink: 1; 
+            margin-bottom: 1.5rem;
+            position: relative;
         }
         
         video { 
-            max-width: 100%;
-            max-height: 100%;
-            width: auto;
-            height: auto;
+            width: 100%;
+            height: 100%;
             display: block;
-            object-fit: contain; 
+            object-fit: contain; /* Default: show everything */
             background: black;
+            transition: all 0.2s ease-out;
+        }
+
+        /* THE SNAP FIX: 
+           Forces the 4:3 content with bars to "Fill" the 16:9 container,
+           effectively cropping the horizontal bars by snapping to edges.
+        */
+        video.zoom-active {
+            object-fit: cover; 
+            transform: scale(1.00); /* Slight extra nudge to ensure no sub-pixel gaps */
         }
 
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: var(--bg-main); }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
-        
-        .card-overlay {
-            background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.4) 40%, transparent 100%);
-            text-shadow: 0 2px 8px rgba(0,0,0,0.9);
-        }
-
-        .smooth-hover { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
         
         .interactive-btn {
             background: #1e293b;
@@ -83,22 +79,35 @@
             letter-spacing: 0.05em;
             transition: all 0.2s ease;
         }
-        .interactive-btn:hover { background: #334155; }
+        .interactive-btn:hover { background: #475569; }
 
-        /* Filtering logic */
+        .progress-container { height: 10px; background: #1e293b; border-radius: 5px; cursor: pointer; position: relative; }
+        .progress-fill { height: 100%; background: #2563eb; width: 0%; border-radius: 5px; }
+
         .card-filtered-tv { display: none !important; }
         .show-filtered .card-filtered-tv { display: flex !important; }
         .show-filtered .card-main-channel { display: none !important; }
         .hidden-by-show-filter { display: none !important; }
 
-        /* Custom Video Progress Bar */
-        .progress-container { height: 6px; background: #1e293b; border-radius: 3px; cursor: pointer; position: relative; }
-        .progress-fill { height: 100%; background: #2563eb; width: 0%; border-radius: 3px; transition: width 0.1s linear; }
+        input[type=range] {
+            -webkit-appearance: none;
+            background: #1e293b;
+            height: 4px;
+            border-radius: 2px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 14px;
+            width: 14px;
+            border-radius: 50%;
+            background: #2563eb;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body class="h-screen flex flex-col">
 
-    <header class="flex-shrink-0 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 p-4">
+    <header class="flex-shrink-0 bg-slate-900 border-b border-slate-800 p-4 z-50">
         <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
             <div class="flex items-center gap-3 cursor-pointer" onclick="location.reload()">
                 <div class="bg-blue-600 p-2 rounded-lg">
@@ -107,28 +116,28 @@
                 <h1 class="text-lg font-black tracking-tighter uppercase">ARCHIVE<span class="text-blue-500">EXPLORER</span></h1>
             </div>
 
-            <div class="flex-1 max-w-md relative">
-                <input type="text" id="searchInput" placeholder="Search keywords..." onkeydown="if(event.key==='Enter') resetAndSearch()" 
-                    class="w-full bg-slate-800 border border-slate-700 rounded-full py-2 px-6 focus:ring-2 focus:ring-blue-500 outline-none text-sm transition-all text-white">
+            <div class="flex-1 max-w-md">
+                <input type="text" id="searchInput" placeholder="Search news, dates, shows..." onkeydown="if(event.key==='Enter') resetAndSearch()" 
+                    class="w-full bg-slate-800 border border-slate-700 rounded-full py-2 px-6 focus:ring-2 focus:ring-blue-500 outline-none text-sm text-white">
             </div>
 
-            <div class="flex items-center gap-2 relative">
-                <select id="showFilterDropdown" onchange="applyShowFilter()" class="interactive-btn bg-slate-800 border-slate-700 max-w-[150px] truncate outline-none cursor-pointer">
+            <div class="flex items-center gap-2">
+                <select id="showFilterDropdown" onchange="applyShowFilter()" class="interactive-btn bg-slate-800 border-slate-700 max-w-[140px] truncate outline-none cursor-pointer">
                     <option value="ALL">All Shows</option>
                 </select>
-                <button id="toggleFilterBtn" onclick="toggleTVFilter()" class="interactive-btn text-red-400 border-red-900/50">Show TV-Only</button>
+                <button id="toggleFilterBtn" onclick="toggleTVFilter()" class="interactive-btn text-red-400 border-red-900/30">TV-Only</button>
                 <button onclick="toggleDropdown()" class="interactive-btn">Channels</button>
-                <button onclick="resetAndSearch()" class="interactive-btn bg-blue-600 border-blue-600 hover:bg-blue-500">Scan</button>
+                <button onclick="resetAndSearch()" class="interactive-btn bg-blue-600 border-blue-600">Scan</button>
 
-                <div id="channel-dropdown" class="hidden absolute right-0 top-12 w-64 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-4 z-[60]">
-                    <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-800 text-[10px] font-black uppercase text-slate-500">
-                        <span>Filters</span>
-                        <div class="flex gap-3">
-                            <button onclick="setAllChannels(true)" class="text-blue-500 hover:text-white">All</button>
-                            <button onclick="setAllChannels(false)" class="hover:text-white">None</button>
+                <div id="channel-dropdown" class="hidden absolute right-4 top-20 w-64 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-4 z-[999]">
+                    <div class="flex items-center justify-between mb-3 text-[10px] font-black uppercase text-slate-500">
+                        <span>Stations</span>
+                        <div class="flex gap-2">
+                            <button onclick="setAllChannels(true)" class="text-blue-500">All</button>
+                            <button onclick="setAllChannels(false)">None</button>
                         </div>
                     </div>
-                    <div id="network-options" class="space-y-1 max-h-64 overflow-y-auto custom-scrollbar"></div>
+                    <div id="network-options" class="space-y-1 max-h-60 overflow-y-auto custom-scrollbar"></div>
                 </div>
             </div>
         </div>
@@ -140,60 +149,68 @@
             <div id="loader" class="py-20 text-center hidden">
                 <div class="inline-block animate-spin rounded-full h-10 w-10 border-4 border-blue-500/20 border-t-blue-500"></div>
             </div>
-            <div id="pagination" class="mt-12 flex justify-center hidden">
-                <button onclick="loadMore()" class="interactive-btn px-12 py-3 rounded-xl text-xs">Load More Results</button>
+            <div id="pagination" class="mt-8 flex justify-center hidden">
+                <button onclick="loadMore()" class="interactive-btn px-10 py-3">Load More</button>
             </div>
         </div>
     </main>
 
     <main id="player-view" class="fixed inset-0 z-[100] bg-slate-950 hidden">
-        <div class="player-viewport max-w-7xl mx-auto">
-            <div class="flex-shrink-0 mb-4 flex items-center justify-between">
+        <div class="player-viewport">
+            <div class="flex justify-between items-center mb-4">
                 <button onclick="closePlayer()" class="flex items-center gap-2 text-slate-400 hover:text-white group">
-                    <svg class="w-5 h-5 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
-                    <span class="text-xs font-black uppercase tracking-widest">Exit Player</span>
+                    <svg class="w-5 h-5 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path d="M15 19l-7-7 7-7"/></svg>
+                    <span class="text-xs font-black uppercase tracking-widest">Back to Gallery</span>
                 </button>
-                <div class="flex items-center gap-4">
-                    <button onclick="toggleFullScreen()" class="text-[10px] font-black uppercase text-slate-400 hover:text-white tracking-widest flex items-center gap-1.5">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
-                        Full Screen
+                <div class="flex items-center gap-3">
+                    <button onclick="toggleZoom()" id="zoom-btn" class="interactive-btn border-blue-500/30 text-blue-400">
+                        Snap to Width
                     </button>
-                    <a id="archive-link" target="_blank" class="text-[10px] font-black uppercase text-slate-500 hover:text-blue-400 tracking-widest">Source: Archive.org</a>
+                    <a id="archive-source-link" href="#" target="_blank" class="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-blue-400">View on Archive.org</a>
                 </div>
             </div>
 
-            <div class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-0">
-                <div class="lg:col-span-8 video-column min-h-0">
-                    <div class="player-container shadow-2xl mb-4">
-                        <video id="native-player" controls crossorigin="anonymous" playsinline></video>
-                    </div>
+            <div class="flex-1 flex flex-col min-h-0 overflow-y-auto custom-scrollbar pb-10">
+                <div class="player-container" id="vid-wrap" onclick="togglePlayPause()">
+                    <video id="native-player" crossorigin="anonymous" playsinline></video>
+                </div>
 
-                    <div class="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 space-y-4 flex-shrink-0">
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-6">
+                    <div class="space-y-3">
                         <div class="progress-container" onclick="handleSeek(event)">
                             <div id="global-progress" class="progress-fill"></div>
                         </div>
-                        <div class="flex justify-between items-start gap-4">
-                            <div class="flex-1 min-w-0">
-                                <div class="flex items-baseline gap-3 flex-wrap">
-                                    <h2 id="p-title" class="text-lg md:text-xl font-black text-white uppercase tracking-tighter truncate"></h2>
-                                    <span id="p-airtime" class="text-sm md:text-base font-black text-blue-400 mono italic opacity-80"></span>
-                                </div>
-                                <div class="flex items-center gap-3 mt-1.5">
-                                    <span id="p-channel" class="bg-blue-600 px-2 py-0.5 rounded text-[9px] font-black text-white uppercase leading-none">CHANNEL</span>
-                                    <span id="p-date" class="text-[11px] font-bold text-slate-500 mono">DATE</span>
+                        
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-4 flex-1 truncate">
+                                <button onclick="togglePlayPause()" id="play-btn" class="text-white hover:text-blue-500 transition-colors">
+                                    <svg id="play-icon" class="w-10 h-10" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                    <svg id="pause-icon" class="w-10 h-10 hidden" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                                </button>
+                                <div class="truncate">
+                                    <h2 id="p-title" class="text-lg font-black text-white uppercase tracking-tighter truncate leading-tight"></h2>
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <span id="p-channel" class="bg-blue-600 px-1.5 py-0.5 rounded text-[9px] font-black text-white uppercase"></span>
+                                        <span id="p-airtime" class="text-[11px] font-bold text-blue-400 mono italic"></span>
+                                        <span id="p-date" class="text-[11px] font-bold text-slate-500 mono"></span>
+                                    </div>
                                 </div>
                             </div>
-                            <div id="timestamp-ui" class="flex-shrink-0 text-[10px] font-bold text-slate-400 mono p-2 bg-black/40 rounded border border-slate-800">00:00 / 00:00</div>
+
+                            <div class="flex items-center gap-6 pl-4">
+                                <div id="timestamp-ui" class="text-[11px] font-black text-slate-400 mono bg-black/50 px-3 py-1.5 rounded-lg border border-slate-800">00:00:00 / 00:00:00</div>
+                                <input type="range" id="volume-slider" min="0" max="1" step="0.1" value="1" oninput="setVolume(this.value)" class="w-20">
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <div class="lg:col-span-4 bg-slate-900/50 border border-slate-800 rounded-2xl flex flex-col min-h-0">
-                    <div class="p-3 border-b border-slate-800 text-[10px] font-black text-slate-500 uppercase tracking-widest flex justify-between bg-slate-900/80 rounded-t-2xl">
-                        <span>Segments</span>
-                        <span class="text-blue-500" id="seg-count">0</span>
+                    <div class="border-t border-slate-800 pt-5">
+                        <div class="flex items-center justify-between mb-4">
+                            <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Jump to Scene</span>
+                            <span class="text-[10px] font-bold text-blue-500 mono" id="seg-count"></span>
+                        </div>
+                        <div id="seg-list" class="flex flex-wrap gap-2"></div>
                     </div>
-                    <div id="seg-list" class="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-2"></div>
                 </div>
             </div>
         </div>
@@ -205,9 +222,9 @@
             API_META: 'https://archive.org/metadata/',
             DL_BASE: 'https://archive.org/download/',
             SEGMENT_LENGTH: 300,
-            EXCLUDED: ["BAY AREA", "THE BAY", "ABC7", "NEWS AT"],
+            PAGE_SIZE: 60,
             STATIONS: {
-                "CNNW": "CNN", "FOXNEWSW": "FOX NEWS", "MSNOW": "MS NBC", "CNBC": "CNBC", 
+                "CNNW": "CNN", "FOXNEWSW": "FOX NEWS", "MSNOW": "MS NOW", "CNBC": "CNBC", 
                 "BLOOMBERG": "BLOOMBERG", "FBC": "FOX BIZ", "COM": "COMEDY", 
                 "KNTV": "NBC", "KGO": "ABC", "KPIX": "CBS", "KQED": "PBS"
             }
@@ -222,7 +239,8 @@
             file: null, 
             showTVOnly: false,
             allItems: [],
-            targetSeekRelative: 0
+            targetSeekRelative: 0,
+            zoom: false
         };
 
         window.onload = () => {
@@ -230,102 +248,58 @@
             setupPlayerEvents();
             renderStations();
             resetAndSearch();
+            window.onpopstate = () => { if (!document.getElementById('player-view').classList.contains('hidden')) closePlayer(true); };
         };
+
+        function toggleZoom() {
+            state.zoom = !state.zoom;
+            const v = document.getElementById('native-player');
+            const btn = document.getElementById('zoom-btn');
+            if (state.zoom) {
+                v.classList.add('zoom-active');
+                btn.classList.add('bg-blue-600', 'text-white');
+                btn.innerText = "Snap: ON";
+            } else {
+                v.classList.remove('zoom-active');
+                btn.classList.remove('bg-blue-600', 'text-white');
+                btn.innerText = "Snap to Width";
+            }
+        }
 
         function setupPlayerEvents() {
             state.video.addEventListener('timeupdate', () => {
                 const currentGlobal = state.currentStart + state.video.currentTime;
                 const progress = (currentGlobal / state.duration) * 100;
                 document.getElementById('global-progress').style.width = `${progress}%`;
-                
-                document.getElementById('timestamp-ui').innerText = 
-                    `${formatTime(currentGlobal)} / ${formatTime(state.duration)}`;
+                document.getElementById('timestamp-ui').innerText = `${formatTime(currentGlobal)} / ${formatTime(state.duration)}`;
+            });
+
+            state.video.addEventListener('play', () => {
+                document.getElementById('play-icon').classList.add('hidden');
+                document.getElementById('pause-icon').classList.remove('hidden');
+            });
+
+            state.video.addEventListener('pause', () => {
+                document.getElementById('play-icon').classList.remove('hidden');
+                document.getElementById('pause-icon').classList.add('hidden');
             });
 
             state.video.addEventListener('ended', () => {
                 const nextStart = state.currentStart + CONFIG.SEGMENT_LENGTH;
-                if (nextStart < state.duration) {
-                    playSeg(nextStart, 0);
-                }
+                if (nextStart < state.duration) playSeg(nextStart, 0);
             });
         }
 
-        function toggleFullScreen() {
-            if (!document.fullscreenElement) {
-                state.video.requestFullscreen().catch(err => {
-                    console.error(`Error attempting to enable full-screen mode: ${err.message}`);
-                });
-            } else {
-                document.exitFullscreen();
-            }
-        }
-
-        function toggleTVFilter() {
-            state.showTVOnly = !state.showTVOnly;
-            const grid = document.getElementById('results-grid');
-            const btn = document.getElementById('toggleFilterBtn');
-            
-            if (state.showTVOnly) {
-                grid.classList.add('show-filtered');
-                btn.innerText = "Show Channels";
-                btn.classList.add('bg-red-600', 'text-white');
-                btn.classList.remove('text-red-400', 'border-red-900/50');
-            } else {
-                grid.classList.remove('show-filtered');
-                btn.innerText = "Show TV-Only";
-                btn.classList.remove('bg-red-600', 'text-white');
-                btn.classList.add('text-red-400', 'border-red-900/50');
-            }
-            updateShowDropdown();
-        }
-
-        function applyShowFilter() {
-            const selectedShow = document.getElementById('showFilterDropdown').value;
-            const cards = document.querySelectorAll('#results-grid > div');
-            
-            cards.forEach(card => {
-                const cardShow = card.getAttribute('data-show-name');
-                if (selectedShow === "ALL" || cardShow === selectedShow) {
-                    card.classList.remove('hidden-by-show-filter');
-                } else {
-                    card.classList.add('hidden-by-show-filter');
-                }
-            });
-        }
-
-        function updateShowDropdown() {
-            const dropdown = document.getElementById('showFilterDropdown');
-            const currentVal = dropdown.value;
-            dropdown.innerHTML = '<option value="ALL">All Shows</option>';
-            
-            const visibleShows = new Set();
-            state.allItems.forEach(item => {
-                const isGenericTV = (item.meta.channel === "TV");
-                if (state.showTVOnly && isGenericTV) visibleShows.add(item.meta.show);
-                if (!state.showTVOnly && !isGenericTV) visibleShows.add(item.meta.show);
-            });
-            
-            Array.from(visibleShows).sort().forEach(show => {
-                const opt = document.createElement('option');
-                opt.value = show;
-                opt.innerText = show;
-                dropdown.appendChild(opt);
-            });
-            
-            dropdown.value = visibleShows.has(currentVal) ? currentVal : "ALL";
-            applyShowFilter();
-        }
+        function togglePlayPause() { state.video.paused ? state.video.play() : state.video.pause(); }
+        function setVolume(val) { state.video.volume = val; }
 
         function renderStations() {
             const container = document.getElementById('network-options');
-            if (!container) return;
             Object.entries(CONFIG.STATIONS).forEach(([id, name]) => {
                 const div = document.createElement('label');
-                div.className = "flex items-center justify-between p-2 hover:bg-slate-800 rounded-lg cursor-pointer smooth-hover";
-                div.innerHTML = `
-                    <span class="text-[11px] font-bold text-slate-400 uppercase">${name}</span>
-                    <input type="checkbox" value="TV-${id}" checked onchange="resetAndSearch()" class="station-cb w-4 h-4 accent-blue-600">
-                `;
+                div.className = "flex items-center justify-between p-2 hover:bg-slate-800 rounded-lg cursor-pointer";
+                div.innerHTML = `<span class="text-[11px] font-bold text-slate-400 uppercase">${name}</span>
+                                 <input type="checkbox" value="TV-${id}" checked onchange="resetAndSearch()" class="station-cb w-4 h-4 accent-blue-600">`;
                 container.appendChild(div);
             });
         }
@@ -353,21 +327,15 @@
             const loader = document.getElementById('loader');
             if (!append) grid.innerHTML = '';
             loader.classList.remove('hidden');
-
             const term = document.getElementById('searchInput').value.trim();
             const channels = Array.from(document.querySelectorAll('.station-cb:checked')).map(c => `collection:${c.value}`);
+            if (!channels.length) return loader.classList.add('hidden');
             
-            if (!channels.length) {
-                grid.innerHTML = '<p class="col-span-full text-center text-slate-500 py-10 text-xs uppercase font-bold">Select at least one channel.</p>';
-                return loader.classList.add('hidden');
-            }
-
-            const excludeQuery = CONFIG.EXCLUDED.map(e => ` -title:"${e}"`).join("");
-            let q = `mediatype:movies AND (${channels.join(" OR ")}) ${excludeQuery}`;
+            let q = `mediatype:movies AND (${channels.join(" OR ")})`;
             if (term) q += ` AND (title:(${term}) OR description:(${term}))`;
-
-            const params = new URLSearchParams({ q, 'fl[]': ['identifier', 'title', 'date'], sort: 'publicdate desc', rows: 40, page: state.page, output: 'json' });
-
+            
+            const params = new URLSearchParams({ q, 'fl[]': ['identifier', 'title', 'date'], sort: 'publicdate desc', rows: CONFIG.PAGE_SIZE, page: state.page, output: 'json' });
+            
             try {
                 const res = await fetch(`${CONFIG.API_SEARCH}?${params}`);
                 const data = await res.json();
@@ -378,27 +346,24 @@
         function renderItems(docs) {
             const grid = document.getElementById('results-grid');
             docs.forEach(doc => {
-                if (CONFIG.EXCLUDED.some(e => doc.title.toUpperCase().includes(e))) return;
                 const m = parseMeta(doc.title);
                 state.allItems.push({ doc, meta: m });
-                
                 const isGenericTV = (m.channel === "TV");
                 const card = document.createElement('div');
-                card.className = `group cursor-pointer flex flex-col smooth-hover ${isGenericTV ? 'card-filtered-tv' : 'card-main-channel'}`;
+                card.className = `group cursor-pointer flex flex-col ${isGenericTV ? 'card-filtered-tv' : 'card-main-channel'}`;
                 card.setAttribute('data-show-name', m.show);
-                
                 card.innerHTML = `
-                    <div class="relative aspect-video rounded-xl overflow-hidden border border-slate-800 bg-slate-900 shadow-lg">
-                        <img src="https://archive.org/services/img/${doc.identifier}" class="w-full h-full object-cover opacity-60 group-hover:opacity-100 group-hover:scale-105 smooth-hover">
-                        <div class="absolute inset-0 card-overlay"></div>
-                        <div class="absolute top-1.5 left-1.5 flex gap-1">
-                             <span class="${isGenericTV ? 'bg-red-600' : 'bg-blue-600'} px-1 py-0.5 rounded text-[7px] font-black text-white uppercase leading-none">${m.channel}</span>
+                    <div class="relative aspect-video rounded-xl overflow-hidden border border-slate-800 bg-slate-900">
+                        <img src="https://archive.org/services/img/${doc.identifier}" class="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity">
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+                        <div class="absolute top-2 left-2">
+                             <span class="${isGenericTV ? 'bg-red-600' : 'bg-blue-600'} px-1.5 py-0.5 rounded text-[8px] font-black text-white uppercase">${m.channel}</span>
                         </div>
                         <div class="absolute bottom-2 left-2 right-2">
                             <h4 class="text-[11px] font-black text-white uppercase leading-tight line-clamp-1">${m.show}</h4>
-                            <div class="flex justify-between items-center mt-0.5">
-                                <span class="text-[8px] font-bold text-blue-400 mono uppercase opacity-90">${m.time}</span>
-                                <span class="text-[8px] font-bold text-slate-500 mono opacity-80">${m.date}</span>
+                            <div class="flex justify-between items-center mt-1">
+                                <span class="text-[8px] font-bold text-blue-400 mono">${m.time}</span>
+                                <span class="text-[8px] font-bold text-slate-500 mono">${m.date}</span>
                             </div>
                         </div>
                     </div>
@@ -407,42 +372,46 @@
                 grid.appendChild(card);
             });
             updateShowDropdown();
-            document.getElementById('pagination').classList.toggle('hidden', docs.length < 5);
+            document.getElementById('pagination').classList.toggle('hidden', docs.length < CONFIG.PAGE_SIZE);
         }
 
         async function openPlayer(id, title) {
             state.activeId = id;
             const m = parseMeta(title);
             document.getElementById('player-view').classList.remove('hidden');
-            
+            document.getElementById('archive-source-link').href = `https://archive.org/details/${id}`;
+            history.pushState({ playerOpen: true }, '');
             document.getElementById('p-title').innerText = m.show;
             document.getElementById('p-airtime').innerText = m.time;
             document.getElementById('p-channel').innerText = m.channel;
             document.getElementById('p-date').innerText = m.date;
-            document.getElementById('archive-link').href = `https://archive.org/details/${id}`;
 
             try {
                 const res = await fetch(`${CONFIG.API_META}${id}`);
                 const data = await res.json();
                 const videoFile = data.files.find(f => f.name.endsWith('.mp4') && !f.name.includes('thumb'));
                 if (!videoFile) return;
-
+                
                 state.file = videoFile.name;
                 state.duration = parseInt(videoFile.length || data.metadata.duration || 3600);
                 
                 const segList = document.getElementById('seg-list');
                 segList.innerHTML = '';
-                let count = 0;
-                for (let i = 0; i < state.duration; i += CONFIG.SEGMENT_LENGTH) {
+                const totalMinutes = Math.floor(state.duration / 60);
+                
+                for (let min = 0; min <= totalMinutes; min += 5) {
                     const btn = document.createElement('button');
-                    btn.className = "w-full p-2.5 rounded-lg bg-slate-800/50 border border-slate-700 hover:border-blue-500 text-left smooth-hover text-[10px] font-bold text-slate-400 mono flex justify-between items-center";
-                    btn.innerHTML = `<span>Segment ${Math.floor(i/300)+1}</span> <span class="opacity-40 text-[9px]">${formatTime(i)}</span>`;
-                    btn.onclick = () => playSeg(i, 0);
-                    btn.id = `seg-btn-${i}`;
+                    btn.className = "min-marker px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 hover:border-blue-500 transition-colors text-[10px] font-black text-slate-400 mono min-w-[50px]";
+                    btn.innerText = `${min}m`;
+                    btn.setAttribute('data-min', min);
+                    btn.onclick = (e) => {
+                        e.stopPropagation();
+                        const absSec = min * 60;
+                        playSeg(Math.floor(absSec / CONFIG.SEGMENT_LENGTH) * CONFIG.SEGMENT_LENGTH, absSec % CONFIG.SEGMENT_LENGTH);
+                    };
                     segList.appendChild(btn);
-                    count++;
                 }
-                document.getElementById('seg-count').innerText = count;
+                document.getElementById('seg-count').innerText = `${totalMinutes} Minutes Total`;
                 playSeg(0, 0);
             } catch (e) { console.error(e); }
         }
@@ -450,43 +419,63 @@
         function playSeg(start, relativeSeek = 0) {
             state.currentStart = start;
             state.targetSeekRelative = relativeSeek;
-            
-            const end = Math.min(start + CONFIG.SEGMENT_LENGTH, state.duration);
-            const url = `${CONFIG.DL_BASE}${state.activeId}/${encodeURIComponent(state.file)}?start=${start}&end=${end}`;
-            
+            const url = `${CONFIG.DL_BASE}${state.activeId}/${encodeURIComponent(state.file)}?start=${start}&end=${Math.min(start + CONFIG.SEGMENT_LENGTH, state.duration)}`;
             state.video.pause();
-            
             const onReady = () => {
                 state.video.currentTime = state.targetSeekRelative;
                 state.video.play().catch(() => {});
                 state.video.removeEventListener('loadedmetadata', onReady);
             };
-            
             state.video.addEventListener('loadedmetadata', onReady);
             state.video.src = url;
             state.video.load();
-
-            document.querySelectorAll('#seg-list button').forEach(b => b.classList.remove('border-blue-500', 'bg-blue-600/10'));
-            const activeBtn = document.getElementById(`seg-btn-${start}`);
-            if (activeBtn) {
-                activeBtn.classList.add('border-blue-500', 'bg-blue-600/10');
-                activeBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            }
         }
 
         function handleSeek(e) {
-            if (!state.duration) return;
             const pct = (e.clientX - e.currentTarget.getBoundingClientRect().left) / e.currentTarget.offsetWidth;
-            const absoluteSeconds = state.duration * pct;
-            
-            const segmentIndex = Math.floor(absoluteSeconds / CONFIG.SEGMENT_LENGTH);
-            const startOfSegment = segmentIndex * CONFIG.SEGMENT_LENGTH;
-            const relativeSeek = absoluteSeconds - startOfSegment;
-
-            playSeg(startOfSegment, relativeSeek);
+            const abs = state.duration * pct;
+            playSeg(Math.floor(abs / CONFIG.SEGMENT_LENGTH) * CONFIG.SEGMENT_LENGTH, abs % CONFIG.SEGMENT_LENGTH);
         }
 
-        const closePlayer = () => { state.video.pause(); document.getElementById('player-view').classList.add('hidden'); };
+        function toggleTVFilter() {
+            state.showTVOnly = !state.showTVOnly;
+            document.getElementById('results-grid').classList.toggle('show-filtered', state.showTVOnly);
+            document.getElementById('toggleFilterBtn').innerText = state.showTVOnly ? "Show Main" : "TV-Only";
+            updateShowDropdown();
+        }
+
+        function updateShowDropdown() {
+            const dropdown = document.getElementById('showFilterDropdown');
+            const currentVal = dropdown.value;
+            dropdown.innerHTML = '<option value="ALL">All Shows</option>';
+            const visibleShows = new Set();
+            state.allItems.forEach(item => {
+                const isGenericTV = (item.meta.channel === "TV");
+                if (state.showTVOnly === isGenericTV) visibleShows.add(item.meta.show);
+            });
+            Array.from(visibleShows).sort().forEach(show => {
+                const opt = document.createElement('option');
+                opt.value = show; opt.innerText = show;
+                dropdown.appendChild(opt);
+            });
+            dropdown.value = visibleShows.has(currentVal) ? currentVal : "ALL";
+            applyShowFilter();
+        }
+
+        function applyShowFilter() {
+            const selected = document.getElementById('showFilterDropdown').value;
+            document.querySelectorAll('#results-grid > div').forEach(card => {
+                card.classList.toggle('hidden-by-show-filter', selected !== "ALL" && card.getAttribute('data-show-name') !== selected);
+            });
+        }
+
+        function closePlayer(fromPop = false) {
+            state.video.pause();
+            document.getElementById('player-view').classList.add('hidden');
+            if (state.zoom) toggleZoom(); 
+            if (!fromPop && history.state?.playerOpen) history.back();
+        }
+
         const formatTime = (s) => {
             const h = Math.floor(s / 3600);
             const m = Math.floor((s % 3600) / 60);
