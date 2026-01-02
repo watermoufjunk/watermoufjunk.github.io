@@ -15,7 +15,7 @@
             --text-muted: #64748b;
         }
 
-        body { font-family: 'Inter', sans-serif; background-color: var(--bg-main); color: #f8fafc; overflow: hidden; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg-main); color: #f8fafc; overflow-x: hidden; }
         .mono { font-family: 'JetBrains Mono', monospace; }
         
         #search-view { height: calc(100vh - 80px); overflow-y: auto; }
@@ -45,19 +45,7 @@
             position: relative;
         }
         
-        video { 
-            width: 100%;
-            height: 100%;
-            display: block;
-            object-fit: contain;
-            background: black;
-            transition: all 0.2s ease-out;
-        }
-x
-        video.zoom-active {
-            object-fit: cover; 
-            transform: scale(1.02);
-        }
+        video { width: 100%; height: 100%; object-fit: contain; background: black; }
 
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: var(--bg-main); }
@@ -74,48 +62,57 @@ x
             text-transform: uppercase;
             letter-spacing: 0.05em;
             transition: all 0.2s ease;
+            white-space: nowrap;
         }
         .interactive-btn:hover { background: #475569; }
 
         .progress-container { height: 10px; background: #1e293b; border-radius: 5px; cursor: pointer; position: relative; }
         .progress-fill { height: 100%; background: #2563eb; width: 0%; border-radius: 5px; }
 
-        .card-filtered-tv { display: none !important; }
-        .show-filtered .card-filtered-tv { display: flex !important; }
-        .show-filtered .card-main-channel { display: none !important; }
-        .hidden-by-show-filter { display: none !important; }
-
-        input[type=range] {
-            -webkit-appearance: none;
-            background: #1e293b;
-            height: 4px;
-            border-radius: 2px;
-        }
-        input[type=range]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            height: 14px;
-            width: 14px;
-            border-radius: 50%;
-            background: #2563eb;
-            cursor: pointer;
-        }
-
+        /* API Address Bar Styling */
         .api-address-bar {
             background: #020617;
             border: 1px solid #1e293b;
-            border-radius: 8px;
-            padding: 8px 12px;
+            border-radius: 12px;
+            padding: 10px 16px;
             font-family: 'JetBrains Mono', monospace;
-            font-size: 10px;
+            font-size: 11px;
             color: #94a3b8;
             display: flex;
             align-items: center;
-            gap: 10px;
-            margin-bottom: 20px;
+            gap: 12px;
+            margin-bottom: 24px;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
         }
+
+        .noise-item { opacity: 0.4; }
+        .hide-noise .noise-item { display: none !important; }
+        
+        .thumb-overlay-gradient {
+            background: linear-gradient(0deg, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.4) 50%, rgba(0,0,0,0) 90%);
+        }
+
+        .live-badge {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            background: rgba(15, 23, 42, 0.9);
+            backdrop-filter: blur(12px);
+            padding: 10px 16px;
+            border-radius: 12px;
+            border: 1px solid rgba(59, 130, 246, 0.5);
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+
+        .poster-img { transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .group:hover .poster-img { transform: scale(1.08); }
     </style>
 </head>
-<body class="h-screen flex flex-col">
+<body class="h-screen flex flex-col hide-noise">
 
     <header class="flex-shrink-0 bg-slate-900 border-b border-slate-800 p-4 z-50">
         <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
@@ -132,11 +129,13 @@ x
             </div>
 
             <div class="flex items-center gap-2">
+                <button id="noise-toggle" onclick="toggleNoiseFilter()" class="interactive-btn text-amber-400 border-amber-900/30">
+                    Clean Feed: ON
+                </button>
                 <select id="showFilterDropdown" onchange="applyShowFilter()" class="interactive-btn bg-slate-800 border-slate-700 max-w-[140px] truncate outline-none cursor-pointer">
                     <option value="ALL">All Shows</option>
                 </select>
-                <button id="toggleFilterBtn" onclick="toggleTVFilter()" class="interactive-btn text-red-400 border-red-900/30">TV-Only</button>
-                <button onclick="toggleDropdown()" class="interactive-btn">Channels</button>
+                <button onclick="toggleDropdown()" class="interactive-btn">Stations</button>
                 <button onclick="resetAndSearch()" class="interactive-btn bg-blue-600 border-blue-600">Scan</button>
 
                 <div id="channel-dropdown" class="hidden absolute right-4 top-20 w-64 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-4 z-[999]">
@@ -144,7 +143,7 @@ x
                         <span>Stations</span>
                         <div class="flex gap-2">
                             <button onclick="setAllChannels(true)" class="text-blue-500">All</button>
-                            <button onclick="setAllChannels(false)">None</button>
+                            <button onclick="setAllChannels(false)" class="text-slate-400">None</button>
                         </div>
                     </div>
                     <div id="network-options" class="space-y-1 max-h-60 overflow-y-auto custom-scrollbar"></div>
@@ -155,21 +154,28 @@ x
 
     <main id="search-view" class="flex-1 custom-scrollbar">
         <div class="max-w-[1600px] mx-auto p-6">
+            
             <!-- RESTORED ADDRESS BAR -->
             <div class="api-address-bar">
-                <span class="text-blue-500 font-black px-1.5 py-0.5 bg-blue-500/10 rounded">GET</span>
-                <span id="current-api-url" class="truncate opacity-80">Waiting for query...</span>
-                <button onclick="copyApiUrl()" class="ml-auto hover:text-white transition-colors">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                <div class="flex items-center gap-2 shrink-0">
+                    <span class="text-blue-500 font-black px-2 py-0.5 bg-blue-500/10 rounded text-[10px]">GET</span>
+                    <span class="text-slate-600 font-bold text-[10px]">v1/search</span>
+                </div>
+                <div id="current-api-url" class="truncate opacity-90 text-slate-400 select-all cursor-text">
+                    Waiting for engine...
+                </div>
+                <button onclick="copyApiUrl()" class="ml-auto hover:text-white transition-colors" title="Copy URL">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
                 </button>
             </div>
 
-            <div id="results-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4"></div>
+            <div id="results-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-6"></div>
+            
             <div id="loader" class="py-20 text-center hidden">
                 <div class="inline-block animate-spin rounded-full h-10 w-10 border-4 border-blue-500/20 border-t-blue-500"></div>
             </div>
             <div id="pagination" class="mt-8 flex justify-center hidden">
-                <button onclick="loadMore()" class="interactive-btn px-10 py-3">Load More</button>
+                <button onclick="loadMore()" class="interactive-btn px-10 py-3">Load More Results</button>
             </div>
         </div>
     </main>
@@ -179,19 +185,17 @@ x
             <div class="flex justify-between items-center mb-4">
                 <button onclick="closePlayer()" class="flex items-center gap-2 text-slate-400 hover:text-white group">
                     <svg class="w-5 h-5 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path d="M15 19l-7-7 7-7"/></svg>
-                    <span class="text-xs font-black uppercase tracking-widest">Back to Gallery</span>
+                    <span class="text-xs font-black uppercase tracking-widest">Gallery</span>
                 </button>
-                <div class="flex items-center gap-3">
-                    <button onclick="toggleZoom()" id="zoom-btn" class="interactive-btn border-blue-500/30 text-blue-400">
-                        Snap to Width
-                    </button>
-                    <a id="archive-source-link" href="#" target="_blank" class="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-blue-400">View on Archive.org</a>
-                </div>
             </div>
 
             <div class="flex-1 flex flex-col min-h-0 overflow-y-auto custom-scrollbar pb-10">
-                <div class="player-container" id="vid-wrap" onclick="togglePlayPause()">
-                    <video id="native-player" crossorigin="anonymous" playsinline></video>
+                <div class="player-container" id="vid-wrap">
+                    <div id="player-float-badge" class="live-badge">
+                        <span id="float-date" class="text-blue-400 text-xs font-black mono tracking-tight leading-none mb-1"></span>
+                        <span id="float-time" class="text-slate-200 text-[11px] font-bold mono leading-none uppercase tracking-tighter"></span>
+                    </div>
+                    <video id="native-player" crossorigin="anonymous" playsinline onclick="togglePlayPause()"></video>
                 </div>
 
                 <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-6">
@@ -202,31 +206,26 @@ x
                         
                         <div class="flex items-center justify-between">
                             <div class="flex items-center gap-4 flex-1 truncate">
-                                <button onclick="togglePlayPause()" id="play-btn" class="text-white hover:text-blue-500 transition-colors">
+                                <button onclick="togglePlayPause()" id="play-btn" class="text-white">
                                     <svg id="play-icon" class="w-10 h-10" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                                     <svg id="pause-icon" class="w-10 h-10 hidden" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
                                 </button>
                                 <div class="truncate">
-                                    <h2 id="p-title" class="text-lg font-black text-white uppercase tracking-tighter truncate leading-tight"></h2>
+                                    <h2 id="p-title" class="text-lg font-black text-white uppercase tracking-tighter truncate"></h2>
                                     <div class="flex items-center gap-2 mt-1">
                                         <span id="p-channel" class="bg-blue-600 px-1.5 py-0.5 rounded text-[9px] font-black text-white uppercase"></span>
-                                        <span id="p-airtime" class="text-[11px] font-bold text-blue-400 mono italic"></span>
-                                        <span id="p-date" class="text-[11px] font-bold text-slate-500 mono"></span>
+                                        <span id="p-date-ui" class="text-[11px] font-bold text-blue-400 mono italic"></span>
+                                        <span id="p-time-ui" class="text-[11px] font-bold text-slate-500 mono"></span>
                                     </div>
                                 </div>
                             </div>
-
-                            <div class="flex items-center gap-6 pl-4">
-                                <div id="timestamp-ui" class="text-[11px] font-black text-slate-400 mono bg-black/50 px-3 py-1.5 rounded-lg border border-slate-800">00:00:00 / 00:00:00</div>
-                                <input type="range" id="volume-slider" min="0" max="1" step="0.1" value="1" oninput="setVolume(this.value)" class="w-20">
-                            </div>
+                            <div id="timestamp-ui" class="text-[11px] font-black text-slate-400 mono bg-black/50 px-3 py-1.5 rounded-lg border border-slate-800">00:00:00</div>
                         </div>
                     </div>
 
                     <div class="border-t border-slate-800 pt-5">
                         <div class="flex items-center justify-between mb-4">
-                            <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Jump to Scene</span>
-                            <span class="text-[10px] font-bold text-blue-500 mono" id="seg-count"></span>
+                            <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Segments</span>
                         </div>
                         <div id="seg-list" class="flex flex-wrap gap-2"></div>
                     </div>
@@ -240,10 +239,11 @@ x
             API_SEARCH: 'https://archive.org/advancedsearch.php',
             API_META: 'https://archive.org/metadata/',
             DL_BASE: 'https://archive.org/download/',
+            POSTER_JSON: 'https://raw.githubusercontent.com/watermoufjunk/watermoufjunk.github.io/refs/heads/main/test.json',
             SEGMENT_LENGTH: 300,
-            PAGE_SIZE: 60,
+            PAGE_SIZE: 100,
             STATIONS: {
-                "CNNW": "CNN", "FOXNEWSW": "FOX NEWS", "MSNOW": "MS NOW", "CNBC": "CNBC", 
+                "CNNW": "CNN", "FOXNEWSW": "FOX NEWS", "MSNOW": "MS NBC", "CNBC": "CNBC", 
                 "BLOOMBERG": "BLOOMBERG", "FBC": "FOX BIZ", "COM": "COMEDY", 
                 "KNTV": "NBC", "KGO": "ABC", "KPIX": "CBS", "KQED": "PBS"
             }
@@ -256,64 +256,75 @@ x
             duration: 0, 
             currentStart: 0, 
             file: null, 
-            showTVOnly: false,
             allItems: [],
-            targetSeekRelative: 0,
-            zoom: false
+            filterNoise: true,
+            posters: {} 
         };
 
-        window.onload = () => {
+        window.onload = async () => {
             state.video = document.getElementById('native-player');
             setupPlayerEvents();
             renderStations();
+            await loadPosterArt();
             resetAndSearch();
-            window.onpopstate = () => { if (!document.getElementById('player-view').classList.contains('hidden')) closePlayer(true); };
         };
 
-        function toggleZoom() {
-            state.zoom = !state.zoom;
-            const v = document.getElementById('native-player');
-            const btn = document.getElementById('zoom-btn');
-            if (state.zoom) {
-                v.classList.add('zoom-active');
-                btn.classList.add('bg-blue-600', 'text-white');
-                btn.innerText = "Snap: ON";
+        async function loadPosterArt() {
+            try {
+                const response = await fetch(CONFIG.POSTER_JSON);
+                const text = await response.text();
+                const cleaned = text.replace(/\/\*[\s\S]*?\*\/|([^:]|^)\/\/.*$/gm, '');
+                const data = JSON.parse(cleaned);
+                data.forEach(item => {
+                    if (item.show && item.posters && Array.isArray(item.posters)) {
+                        state.posters[item.show.toLowerCase()] = item.posters;
+                    }
+                });
+            } catch (e) { console.error("Posters load error", e); }
+        }
+
+        function handleImageError(img, showName, currentIndex, archiveId) {
+            const urls = state.posters[showName.toLowerCase()];
+            const nextIndex = currentIndex + 1;
+            if (urls && urls[nextIndex]) {
+                img.src = urls[nextIndex];
+                img.onerror = () => handleImageError(img, showName, nextIndex, archiveId);
             } else {
-                v.classList.remove('zoom-active');
-                btn.classList.remove('bg-blue-600', 'text-white');
-                btn.innerText = "Snap to Width";
+                img.src = `https://archive.org/services/img/${archiveId}`;
+                img.classList.add('opacity-60');
+                img.onerror = null;
             }
         }
 
-        function setupPlayerEvents() {
-            state.video.addEventListener('timeupdate', () => {
-                const currentGlobal = state.currentStart + state.video.currentTime;
-                const progress = (currentGlobal / state.duration) * 100;
-                document.getElementById('global-progress').style.width = `${progress}%`;
-                document.getElementById('timestamp-ui').innerText = `${formatTime(currentGlobal)} / ${formatTime(state.duration)}`;
-            });
+        function parseMeta(fullTitle) {
+            const parts = fullTitle.split(/\s*:\s*/);
+            const showName = (parts[0] || "Unknown Show").trim();
+            const stationPart = (parts[1] || "").trim();
+            const metaBlock = parts.slice(2).join(" : ").trim();
+            const stationId = stationPart.split(' ')[0].replace('TV-', '');
+            const channelLabel = CONFIG.STATIONS[stationId] || stationId || "TV";
 
-            state.video.addEventListener('play', () => {
-                document.getElementById('play-icon').classList.add('hidden');
-                document.getElementById('pause-icon').classList.remove('hidden');
-            });
-
-            state.video.addEventListener('pause', () => {
-                document.getElementById('play-icon').classList.remove('hidden');
-                document.getElementById('pause-icon').classList.add('hidden');
-            });
-
-            state.video.addEventListener('ended', () => {
-                const nextStart = state.currentStart + CONFIG.SEGMENT_LENGTH;
-                if (nextStart < state.duration) playSeg(nextStart, 0);
-            });
+            let dateStr = "UNDATED";
+            let timeStr = "";
+            if (metaBlock) {
+                const dateMatch = metaBlock.match(/^[a-zA-Z]+\s+\d{1,2},\s+\d{4}/);
+                if (dateMatch) {
+                    dateStr = dateMatch[0];
+                    timeStr = metaBlock.replace(dateStr, "").trim();
+                } else { dateStr = metaBlock; }
+            }
+            return {
+                show: showName,
+                channel: channelLabel,
+                date: dateStr.toUpperCase(),
+                time: timeStr.toUpperCase() || "LIVE",
+                isNoise: showName.toLowerCase() === "tv" || fullTitle.toLowerCase().includes("abc7")
+            };
         }
-
-        function togglePlayPause() { state.video.paused ? state.video.play() : state.video.pause(); }
-        function setVolume(val) { state.video.volume = val; }
 
         function renderStations() {
             const container = document.getElementById('network-options');
+            container.innerHTML = '';
             Object.entries(CONFIG.STATIONS).forEach(([id, name]) => {
                 const div = document.createElement('label');
                 div.className = "flex items-center justify-between p-2 hover:bg-slate-800 rounded-lg cursor-pointer";
@@ -323,56 +334,47 @@ x
             });
         }
 
-        const toggleDropdown = () => document.getElementById('channel-dropdown').classList.toggle('hidden');
-        const setAllChannels = (val) => { document.querySelectorAll('.station-cb').forEach(c => c.checked = val); resetAndSearch(); };
         const resetAndSearch = () => { state.page = 1; state.allItems = []; search(); };
         const loadMore = () => { state.page++; search(true); };
-
-        function parseMeta(fullTitle) {
-            const p = fullTitle.split(" : ");
-            const timeMatch = fullTitle.match(/(\d{1,2}:\d{2}\s?(?:am|pm)\s*-\s*\d{1,2}:\d{2}\s?(?:am|pm))/i);
-            const stationKey = p[1]?.replace('TV-', '').trim();
-            let channel = CONFIG.STATIONS[stationKey] || "TV";
-            return {
-                show: p[0] || "Unknown",
-                channel: channel,
-                time: timeMatch ? timeMatch[0] : "",
-                date: (p[2] || "").replace(timeMatch?.[0] || "", '').replace(/[-:]/g, '').trim()
-            };
-        }
 
         async function search(append = false) {
             const grid = document.getElementById('results-grid');
             const loader = document.getElementById('loader');
-            if (!append) grid.innerHTML = '';
+            const pag = document.getElementById('pagination');
+            if (!append) { grid.innerHTML = ''; pag.classList.add('hidden'); }
             loader.classList.remove('hidden');
+            
             const term = document.getElementById('searchInput').value.trim();
             const channels = Array.from(document.querySelectorAll('.station-cb:checked')).map(c => `collection:${c.value}`);
-            if (!channels.length) return loader.classList.add('hidden');
             
+            if (channels.length === 0) {
+                loader.classList.add('hidden');
+                grid.innerHTML = '<div class="col-span-full py-20 text-center text-slate-500 uppercase font-black tracking-widest text-xs">No stations selected</div>';
+                return;
+            }
+
             let q = `mediatype:movies AND (${channels.join(" OR ")})`;
             if (term) q += ` AND (title:(${term}) OR description:(${term}))`;
             
-            const params = new URLSearchParams({ q, 'fl[]': ['identifier', 'title', 'date'], sort: 'publicdate desc', rows: CONFIG.PAGE_SIZE, page: state.page, output: 'json' });
+            const params = new URLSearchParams({ 
+                q, 'fl[]': ['identifier', 'title', 'date'], 
+                sort: 'date desc', rows: CONFIG.PAGE_SIZE, page: state.page, output: 'json' 
+            });
             
             const fullUrl = `${CONFIG.API_SEARCH}?${params}`;
+            
+            // UPDATING THE ADDRESS BAR
             document.getElementById('current-api-url').innerText = fullUrl;
             
             try {
                 const res = await fetch(fullUrl);
                 const data = await res.json();
-                renderItems(data.response.docs);
-            } catch (e) { console.error(e); } finally { loader.classList.add('hidden'); }
-        }
-
-        function copyApiUrl() {
-            const url = document.getElementById('current-api-url').innerText;
-            const el = document.createElement('textarea');
-            el.value = url;
-            document.body.appendChild(el);
-            el.select();
-            document.execCommand('copy');
-            document.body.removeChild(el);
+                if (data?.response?.docs) {
+                    renderItems(data.response.docs);
+                    if (data.response.docs.length >= CONFIG.PAGE_SIZE) pag.classList.remove('hidden');
+                }
+            } catch (e) { console.error("Search failed", e); } 
+            finally { loader.classList.add('hidden'); }
         }
 
         function renderItems(docs) {
@@ -380,110 +382,69 @@ x
             docs.forEach(doc => {
                 const m = parseMeta(doc.title);
                 state.allItems.push({ doc, meta: m });
-                const isGenericTV = (m.channel === "TV");
+                
+                const customPosters = state.posters[m.show.toLowerCase()];
+                const initialPoster = (customPosters && customPosters[0]) || `https://archive.org/services/img/${doc.identifier}`;
+                const isCustom = !!(customPosters && customPosters[0]);
+
                 const card = document.createElement('div');
-                card.className = `group cursor-pointer flex flex-col ${isGenericTV ? 'card-filtered-tv' : 'card-main-channel'}`;
+                card.className = `group cursor-pointer flex flex-col ${m.isNoise ? 'noise-item' : 'primary-item'}`;
                 card.setAttribute('data-show-name', m.show);
+                
                 card.innerHTML = `
-                    <div class="relative aspect-video rounded-xl overflow-hidden border border-slate-800 bg-slate-900">
-                        <img src="https://archive.org/services/img/${doc.identifier}" class="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity">
-                        <div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+                    <div class="relative aspect-[16/9] rounded-xl overflow-hidden border border-slate-800 bg-slate-900">
+                        <div class="img-slot w-full h-full"></div>
+                        <div class="absolute inset-0 thumb-overlay-gradient"></div>
                         <div class="absolute top-2 left-2">
-                             <span class="${isGenericTV ? 'bg-red-600' : 'bg-blue-600'} px-1.5 py-0.5 rounded text-[8px] font-black text-white uppercase">${m.channel}</span>
+                            <span class="bg-blue-600 px-1.5 py-0.5 rounded text-[8px] font-black text-white uppercase tracking-tight">${m.channel}</span>
                         </div>
-                        <div class="absolute bottom-2 left-2 right-2">
-                            <h4 class="text-[11px] font-black text-white uppercase leading-tight line-clamp-1">${m.show}</h4>
-                            <div class="flex justify-between items-center mt-1">
-                                <span class="text-[8px] font-bold text-blue-400 mono">${m.time}</span>
-                                <span class="text-[8px] font-bold text-slate-500 mono">${m.date}</span>
-                            </div>
+                        <div class="absolute top-2 right-2">
+                            <span class="bg-black/80 backdrop-blur-md border border-white/10 px-2 py-0.5 rounded text-[8px] font-black text-slate-100 mono uppercase tracking-tighter shadow-xl">
+                                ${m.time}
+                            </span>
+                        </div>
+                        <div class="absolute bottom-0 left-0 right-0 p-3">
+                            <h4 class="text-sm font-black text-white uppercase leading-tight line-clamp-2">${m.show}</h4>
+                            <div class="text-[10px] font-bold text-slate-400 mt-1 mono italic opacity-80">${m.date}</div>
                         </div>
                     </div>
                 `;
+
+                const img = document.createElement('img');
+                img.src = initialPoster;
+                img.className = `poster-img w-full h-full object-cover ${isCustom ? 'opacity-100' : 'opacity-60'} group-hover:opacity-100 transition-all`;
+                if (isCustom) img.onerror = () => handleImageError(img, m.show, 0, doc.identifier);
+                
+                card.querySelector('.img-slot').appendChild(img);
                 card.onclick = () => openPlayer(doc.identifier, doc.title);
                 grid.appendChild(card);
             });
             updateShowDropdown();
-            document.getElementById('pagination').classList.toggle('hidden', docs.length < CONFIG.PAGE_SIZE);
         }
 
-        async function openPlayer(id, title) {
-            state.activeId = id;
-            const m = parseMeta(title);
-            document.getElementById('player-view').classList.remove('hidden');
-            document.getElementById('archive-source-link').href = `https://archive.org/details/${id}`;
-            history.pushState({ playerOpen: true }, '');
-            document.getElementById('p-title').innerText = m.show;
-            document.getElementById('p-airtime').innerText = m.time;
-            document.getElementById('p-channel').innerText = m.channel;
-            document.getElementById('p-date').innerText = m.date;
-
-            try {
-                const res = await fetch(`${CONFIG.API_META}${id}`);
-                const data = await res.json();
-                const videoFile = data.files.find(f => f.name.endsWith('.mp4') && !f.name.includes('thumb'));
-                if (!videoFile) return;
-                
-                state.file = videoFile.name;
-                state.duration = parseInt(videoFile.length || data.metadata.duration || 3600);
-                
-                const segList = document.getElementById('seg-list');
-                segList.innerHTML = '';
-                const totalMinutes = Math.floor(state.duration / 60);
-                
-                for (let min = 0; min <= totalMinutes; min += 5) {
-                    const btn = document.createElement('button');
-                    btn.className = "min-marker px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 hover:border-blue-500 transition-colors text-[10px] font-black text-slate-400 mono min-w-[50px]";
-                    btn.innerText = `${min}m`;
-                    btn.setAttribute('data-min', min);
-                    btn.onclick = (e) => {
-                        e.stopPropagation();
-                        const absSec = min * 60;
-                        playSeg(Math.floor(absSec / CONFIG.SEGMENT_LENGTH) * CONFIG.SEGMENT_LENGTH, absSec % CONFIG.SEGMENT_LENGTH);
-                    };
-                    segList.appendChild(btn);
-                }
-                document.getElementById('seg-count').innerText = `${totalMinutes} Minutes Total`;
-                playSeg(0, 0);
-            } catch (e) { console.error(e); }
+        function copyApiUrl() {
+            const text = document.getElementById('current-api-url').innerText;
+            const dummy = document.createElement("input");
+            document.body.appendChild(dummy);
+            dummy.value = text;
+            dummy.select();
+            document.execCommand("copy");
+            document.body.removeChild(dummy);
+            const btn = document.querySelector('.api-address-bar button');
+            btn.innerHTML = '<span class="text-[8px] text-green-500 font-bold uppercase">Copied!</span>';
+            setTimeout(() => {
+                btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>';
+            }, 2000);
         }
 
-        function playSeg(start, relativeSeek = 0) {
-            state.currentStart = start;
-            state.targetSeekRelative = relativeSeek;
-            const url = `${CONFIG.DL_BASE}${state.activeId}/${encodeURIComponent(state.file)}?start=${start}&end=${Math.min(start + CONFIG.SEGMENT_LENGTH, state.duration)}`;
-            state.video.pause();
-            const onReady = () => {
-                state.video.currentTime = state.targetSeekRelative;
-                state.video.play().catch(() => {});
-                state.video.removeEventListener('loadedmetadata', onReady);
-            };
-            state.video.addEventListener('loadedmetadata', onReady);
-            state.video.src = url;
-            state.video.load();
-        }
-
-        function handleSeek(e) {
-            const pct = (e.clientX - e.currentTarget.getBoundingClientRect().left) / e.currentTarget.offsetWidth;
-            const abs = state.duration * pct;
-            playSeg(Math.floor(abs / CONFIG.SEGMENT_LENGTH) * CONFIG.SEGMENT_LENGTH, abs % CONFIG.SEGMENT_LENGTH);
-        }
-
-        function toggleTVFilter() {
-            state.showTVOnly = !state.showTVOnly;
-            document.getElementById('results-grid').classList.toggle('show-filtered', state.showTVOnly);
-            document.getElementById('toggleFilterBtn').innerText = state.showTVOnly ? "Show Main" : "TV-Only";
-            updateShowDropdown();
-        }
-
+        // Rest of the logic (Player, dropdowns, etc)
         function updateShowDropdown() {
             const dropdown = document.getElementById('showFilterDropdown');
             const currentVal = dropdown.value;
             dropdown.innerHTML = '<option value="ALL">All Shows</option>';
             const visibleShows = new Set();
             state.allItems.forEach(item => {
-                const isGenericTV = (item.meta.channel === "TV");
-                if (state.showTVOnly === isGenericTV) visibleShows.add(item.meta.show);
+                if (!state.filterNoise || !item.meta.isNoise) visibleShows.add(item.meta.show);
             });
             Array.from(visibleShows).sort().forEach(show => {
                 const opt = document.createElement('option');
@@ -491,29 +452,106 @@ x
                 dropdown.appendChild(opt);
             });
             dropdown.value = visibleShows.has(currentVal) ? currentVal : "ALL";
-            applyShowFilter();
         }
 
         function applyShowFilter() {
             const selected = document.getElementById('showFilterDropdown').value;
             document.querySelectorAll('#results-grid > div').forEach(card => {
-                card.classList.toggle('hidden-by-show-filter', selected !== "ALL" && card.getAttribute('data-show-name') !== selected);
+                const matches = selected === "ALL" || card.getAttribute('data-show-name') === selected;
+                card.style.display = matches ? '' : 'none';
             });
         }
 
-        function closePlayer(fromPop = false) {
-            state.video.pause();
-            document.getElementById('player-view').classList.add('hidden');
-            if (state.zoom) toggleZoom(); 
-            if (!fromPop && history.state?.playerOpen) history.back();
+        function setAllChannels(val) {
+            document.querySelectorAll('.station-cb').forEach(cb => cb.checked = val);
+            resetAndSearch();
         }
 
+        const toggleDropdown = () => document.getElementById('channel-dropdown').classList.toggle('hidden');
+        function toggleNoiseFilter() {
+            state.filterNoise = !state.filterNoise;
+            document.body.classList.toggle('hide-noise');
+            document.getElementById('noise-toggle').innerText = state.filterNoise ? "Clean Feed: ON" : "Clean Feed: OFF";
+            updateShowDropdown();
+        }
+
+        async function openPlayer(id, title) {
+            state.activeId = id;
+            const m = parseMeta(title);
+            document.getElementById('player-view').classList.remove('hidden');
+            document.getElementById('p-title').innerText = m.show;
+            document.getElementById('p-channel').innerText = m.channel;
+            document.getElementById('p-date-ui').innerText = m.date;
+            document.getElementById('p-time-ui').innerText = m.time;
+            document.getElementById('float-date').innerText = m.date;
+            document.getElementById('float-time').innerText = m.time;
+
+            try {
+                const res = await fetch(`${CONFIG.API_META}${id}`);
+                const data = await res.json();
+                const videoFile = data.files.find(f => f.name.endsWith('.mp4') && !f.name.includes('thumb'));
+                if (!videoFile) return;
+                state.file = videoFile.name;
+                state.duration = parseInt(videoFile.length || 3600);
+                const segList = document.getElementById('seg-list');
+                segList.innerHTML = '';
+                for (let min = 0; min <= Math.floor(state.duration/60); min += 5) {
+                    const btn = document.createElement('button');
+                    btn.className = "px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-[10px] font-black text-slate-400 mono hover:border-blue-500 hover:text-white transition-all";
+                    btn.innerText = `${min}m`;
+                    btn.onclick = () => playSeg(min * 60);
+                    segList.appendChild(btn);
+                }
+                playSeg(0);
+            } catch (e) { console.error(e); }
+        }
+
+        function playSeg(start) {
+            state.currentStart = start;
+            const end = Math.min(start + CONFIG.SEGMENT_LENGTH, state.duration);
+            state.video.src = `${CONFIG.DL_BASE}${state.activeId}/${encodeURIComponent(state.file)}?start=${start}&end=${end}`;
+            state.video.play();
+            document.getElementById('play-icon').classList.add('hidden');
+            document.getElementById('pause-icon').classList.remove('hidden');
+        }
+
+        function togglePlayPause() {
+            if (state.video.paused) {
+                state.video.play();
+                document.getElementById('play-icon').classList.add('hidden');
+                document.getElementById('pause-icon').classList.remove('hidden');
+            } else {
+                state.video.pause();
+                document.getElementById('play-icon').classList.remove('hidden');
+                document.getElementById('pause-icon').classList.add('hidden');
+            }
+        }
+
+        function setupPlayerEvents() {
+            state.video.addEventListener('timeupdate', () => {
+                const currentGlobal = state.currentStart + state.video.currentTime;
+                const progress = (currentGlobal / state.duration) * 100;
+                const fill = document.getElementById('global-progress');
+                if (fill) fill.style.width = `${progress}%`;
+                const ts = document.getElementById('timestamp-ui');
+                if (ts) ts.innerText = formatTime(currentGlobal);
+            });
+        }
+
+        function closePlayer() { state.video.pause(); document.getElementById('player-view').classList.add('hidden'); }
         const formatTime = (s) => {
             const h = Math.floor(s / 3600);
             const m = Math.floor((s % 3600) / 60);
             const sec = Math.floor(s % 60);
             return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${sec.toString().padStart(2,'0')}`;
         };
+
+        function handleSeek(e) {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const pct = (e.clientX - rect.left) / rect.width;
+            const abs = state.duration * pct;
+            playSeg(Math.floor(abs / 300) * 300);
+        }
     </script>
 </body>
 </html>
