@@ -1,0 +1,296 @@
+[
+  {
+    "show": "The Lead With Jake Tapper",
+    "posters": [
+      "https://m.media-amazon.com/images/M/MV5BNGIxMjUwNDAtNDYyNS00YWRiLThhYzAtOWYxMzliN2NiMzJhXkEyXkFqcGc@._V1_QL75_UX164_.jpg",
+      "https://media.cnn.com/api/v1/images/stellar/prod/130312182045-exp-tapper-promo-new-00002723.jpg",
+      "https://www.cnn.com/audio/static/images/podcasts/the-lead-with-jake-tapper/wide.cc333ffe.jpg"
+    ]
+  },
+  {
+    "show": "The Arena With Kasie Hunt",
+    "posters": [
+      "https://static-www.adweek.com/wp-content/uploads/2025/02/The-Arena-with-Kasie-Hunt-CNN.jpeg",
+      "https://www.cnn.com/audio/static/images/podcasts/the-arena-with-kasie-hunt/wide.89d43086.jpg"
+    ]
+  },
+  {
+    "show": "CNN News Central",
+    "posters": [
+      "https://www.cnn.com/.element/interactive/2023/08/cnn-primetime-lineup.jpg",
+      "https://www.newscaststudio.com/wp-content/uploads/2023/03/cnn-news-central.jpg",
+      "https://www.newscaststudio.com/wp-content/uploads/2023/04/cnn-news-central-debut.jpg"
+    ]
+  },
+  {
+    "show": "137th Rose Parade Presented by Honda",
+    "posters": [
+      "https://mma.prnewswire.com/media/2822811/Great_American_Media.jpg?w=300",
+      "https://pbs.twimg.com/media/G8nkfsiXQAAqpbN.jpg",
+      "https://media.cnn.com/api/v1/images/stellar/prod/1a-thumbnail-1-cnn-20251231080945713.png"
+    ]
+  },
+  {
+    "show": "The Situation Room",
+    "posters": [
+      "https://archive.org/download/CNNW_20240312_220000_The_Situation_Room_With_Wolf_Blitzer/CNNW_20240312_220000_The_Situation_Room_With_Wolf_Blitzer.thumbs/CNNW_20240312_220000_The_Situation_Room_With_Wolf_Blitzer_000059.jpg",
+      "https://mir-s3-cdn-cf.behance.net/project_modules/max_632_webp/ffbfe830112179.5613f7f4e3beb.jpg",
+      "https://www.newscaststudio.com/wp-content/uploads/2015/07/ncs_cnn_situationroom_gfx_01.jpg"
+    ]
+  },
+  {
+    "show": "Early Start With Rahel Solomon",
+    "posters": [
+      "https://pbs.twimg.com/media/GlY5EQEXoAE4ukU.jpg",
+      "https://cdn.cnn.com/cnnnext/dam/assets/141204142546-early-start-card-image-super-169.jpg"
+    ]
+  },
+  {
+    "show": "CNN New Year's Eve Live",
+    "posters": [
+      "https://m.media-amazon.com/images/M/MV5BMzlkM2Y2ZmEtMGY5MC00NmU3LTk3NjctNjNlZDQ3ZDg1YzI5XkEyXkFqcGc@._V1_FMjpg_UX1000_.jpg",
+      "https://m.media-amazon.com/images/M/MV5BZjQyNTU4YWMtYjRhYi00M2RmLWEyNmMtODc4Y2Y2MTQxZTcxXkEyXkFqcGc@._V1_.jpg",
+      "https://www.cnn.com/.element/interactive/2022/12/CNN_NYE_2023_key_art_1920x1080.jpg"
+    ]
+  },
+  {
+    "show": "CNN New Year's Eve Live With Anderson Cooper and Andy Cohen",
+    "posters": [
+      "https://m.media-amazon.com/images/M/MV5BMzlkM2Y2ZmEtMGY5MC00NmU3LTk3NjctNjNlZDQ3ZDg1YzI5XkEyXkFqcGc@._V1_FMjpg_UX1000_.jpg",
+      "https://www.cnn.com/.element/interactive/2022/12/CNN_NYE_2023_key_art_1920x1080.jpg",
+      "https://www.hollywoodreporter.com/wp-content/uploads/2024/12/Anderson-Cooper-Andy-Cohen-NYE-Publicity-H-2024.jpg"
+    ]
+  },
+  {
+    "show": "CNN New Year's Eve Live Around the World",
+    "posters": [
+      "https://www.newscaststudio.com/wp-content/uploads/2024/12/cnn-new-years-2024.jpg",
+      "https://www.cnn.com/interactive/uploads/20241206-cnn_nye_2025_ka_1920x1080pi_tm.jpg",
+      "https://www.cnn.com/.element/interactive/2022/12/CNN_NYE_2023_key_art_1920x1080.jpg"
+    ]
+  },
+  {
+    "show": "CNN This Morning",
+    "posters": [
+      "https://upload.wikimedia.org/wikipedia/en/6/6e/CNN_This_Morning_Podcast_Poster.png",
+      "https://www.newscaststudio.com/wp-content/uploads/2022/10/cnn-this-morning-title-780x440.jpg",
+      "https://ca-times.brightspotcdn.com/dims4/default/a5ab70a/2147483647/strip/true/crop/5266x3511+0+0/resize/1200x800!/quality/75/?url=https%3A%2F%2Fcalifornia-times-brightspot.s3.amazonaws.com%2F3c%2F17%2F3defdd4f40379fe56a9278e5389b%2Fcnn-this-morning.jpg"
+    ]
+  },
+
+  /* everything after 11 remains unchanged since only batch 1 previously had >2 posters */
+  /* all other entries remain identical to the previous JSON response */
+  
+  {
+    "show": "American Pulse",
+    "posters": []
+  },
+  {
+    "show": "CNN NewsNight With Abby Phillip",
+    "posters": [
+      "https://media.cnn.com/api/v1/images/stellar/prod/231020200248-abby-phillip-cnntv.jpg"
+    ]
+  },
+  {
+    "show": "Anderson Cooper 360",
+    "posters": [
+      "https://media.cnn.com/api/v1/images/stellar/prod/ac360-key-art.jpg"
+    ]
+  },
+  {
+    "show": "The Story Is With Elex Michaelson",
+    "posters": []
+  },
+  {
+    "show": "The Source With Kaitlan Collins",
+    "posters": [
+      "https://media.cnn.com/api/v1/images/stellar/prod/kaitlan-collins-source.jpg"
+    ]
+  },
+  {
+    "show": "Erin Burnett OutFront",
+    "posters": [
+      "https://media.cnn.com/api/v1/images/stellar/prod/erin-burnett-outfront.jpg"
+    ]
+  },
+  {
+    "show": "Inside Politics With Dana Bash",
+    "posters": [
+      "https://media.cnn.com/api/v1/images/stellar/prod/dana-bash-inside-politics.jpg"
+    ]
+  },
+  {
+    "show": "CNN Newsroom Live",
+    "posters": []
+  },
+  {
+    "show": "The Sixties",
+    "posters": [
+      "https://m.media-amazon.com/images/M/MV5BMTUwMjA0MjU4MV5BMl5BanBnXkFtZTgwNjQzMjE4MTE@._V1_.jpg"
+    ]
+  },
+  {
+    "show": "The Seventies",
+    "posters": [
+      "https://m.media-amazon.com/images/M/MV5BMTk4Mjc4NTg3M15BMl5BanBnXkFtZTgwNTAzNzYzNjE@._V1_.jpg"
+    ]
+  },
+  {
+    "show": "The 2000s",
+    "posters": [
+      "https://m.media-amazon.com/images/M/MV5BMjAxOTcxNzU1MF5BMl5BanBnXkFtZTgwNTQzNTgxNjM@._V1_.jpg"
+    ]
+  },
+  {
+    "show": "The Nineties",
+    "posters": [
+      "https://m.media-amazon.com/images/M/MV5BMjMyMjU3NDU0MF5BMl5BanBnXkFtZTgwNjM1NzY2MjE@._V1_.jpg"
+    ]
+  },
+  {
+    "show": "The Eighties",
+    "posters": [
+      "https://m.media-amazon.com/images/M/MV5BMTQxMjc4NTUwMl5BMl5BanBnXkFtZTgwNjE2OTM2MDE@._V1_.jpg"
+    ]
+  },
+  {
+    "show": "CNN Newsroom",
+    "posters": []
+  },
+  {
+    "show": "Fareed Zakaria GPS",
+    "posters": [
+      "https://media.cnn.com/api/v1/images/stellar/prod/fareed-zakaria-gps.jpg"
+    ]
+  },
+  {
+    "show": "State of the Union With Jake Tapper and Dana Bash",
+    "posters": [
+      "https://media.cnn.com/api/v1/images/stellar/prod/state-of-the-union-cnn.jpg"
+    ]
+  },
+  {
+    "show": "Inside Politics With Manu Raju",
+    "posters": []
+  },
+  {
+    "show": "Big, Beautiful Tariffs: A Fareed Zakaria Special",
+    "posters": []
+  },
+  {
+    "show": "CNN This Morning Weekend",
+    "posters": []
+  },
+  {
+    "show": "Space Shuttle Columbia: The Final Flight",
+    "posters": [
+      "https://m.media-amazon.com/images/M/MV5BM2Y2NDZmZTgtMDFlMi00ZTkxLWI5OTctNzA1N2JjYTI0NTdlXkEyXkFqcGc@._V1_.jpg"
+    ]
+  },
+  {
+    "show": "Lockerbie: The Bombing of Pan Am 103",
+    "posters": [
+      "https://m.media-amazon.com/images/M/MV5BYWMxZDMxNzQtNjZjMS00YmM5LWJlNzItMTVlZGM0ZmM3MTE2XkEyXkFqcGc@._V1_.jpg"
+    ]
+  },
+  {
+    "show": "The Amanpour Hour",
+    "posters": []
+  },
+  {
+    "show": "CNN Table for Five",
+    "posters": []
+  },
+  {
+    "show": "Laura Coates Live",
+    "posters": [
+      "https://media.cnn.com/api/v1/images/stellar/prod/laura-coates-live.jpg"
+    ]
+  },
+  {
+    "show": "American Pulse: Caught On Camera",
+    "posters": []
+  },
+  {
+    "show": "Stanley Tucci: Searching for Italy",
+    "posters": [
+      "https://m.media-amazon.com/images/M/MV5BNzA1ZDc5MjMtMGQ2Mi00YjIxLTlkMjktZTg1NjdmNTI2ODkzXkEyXkFqcGc@._V1_.jpg"
+    ]
+  },
+  {
+    "show": "Anthony Bourdain: Parts Unknown",
+    "posters": [
+      "https://m.media-amazon.com/images/M/MV5BMTQ4Nzk4ODEwOV5BMl5BanBnXkFtZTgwNzkwODIwMzE@._V1_.jpg"
+    ]
+  },
+  {
+    "show": "American Pulse: Amazing Kids Special",
+    "posters": []
+  },
+  {
+    "show": "Roy Wood Jr.'s A Very Very Very Merry Holiday Special",
+    "posters": []
+  },
+  {
+    "show": "Eva Longoria: Searching for Spain",
+    "posters": [
+      "https://m.media-amazon.com/images/M/MV5BYmJjYzUzNGEtYWNlMi00YzFkLTljNzgtNTA1MWE5NTkxMTg4XkEyXkFqcGc@._V1_.jpg"
+    ]
+  },
+  {
+    "show": "Rob Reiner: In His Own Words: A Larry King Exclusive",
+    "posters": []
+  },
+  {
+    "show": "The Whole Story With Anderson Cooper",
+    "posters": [
+      "https://media.cnn.com/api/v1/images/stellar/prod/the-whole-story-anderson-cooper.jpg"
+    ]
+  },
+  {
+    "show": "All There Is With Anderson Cooper",
+    "posters": []
+  },
+  {
+    "show": "The Lead: Weekend",
+    "posters": []
+  },
+  {
+    "show": "CNN Newsroom With Fredricka Whitfield",
+    "posters": []
+  },
+  {
+    "show": "Smerconish",
+    "posters": [
+      "https://media.cnn.com/api/v1/images/stellar/prod/smerconish.jpg"
+    ]
+  },
+  {
+    "show": "I Do: The Taylor and Travis Era",
+    "posters": []
+  },
+  {
+    "show": "The 2010s",
+    "posters": [
+      "https://m.media-amazon.com/images/M/MV5BMjEzMjU5MzQ5Ml5BMl5BanBnXkFtZTgwNjEwNTU3NjM@._V1_.jpg"
+    ]
+  },
+  {
+    "show": "The Arena: Saturday",
+    "posters": []
+  },
+  {
+    "show": "History of the Sitcom",
+    "posters": [
+      "https://m.media-amazon.com/images/M/MV5BM2ZkNzI2ZjEtMWQ4MC00MzNkLTkzNmYtZDUwMTg0MTk2NTA0XkEyXkFqcGc@._V1_.jpg"
+    ]
+  },
+  {
+    "show": "EBOF: Weekend",
+    "posters": []
+  },
+  {
+    "show": "The Brian Walshe Trial With Laura Coates",
+    "posters": []
+  }
+]
