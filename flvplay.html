@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FLV Web Player</title>
+  <script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.7.3/dist/mpegts.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      background: #111;
+      color: #eee;
+      font-family: system-ui, -apple-system, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    .controls {
+      width: 90%;
+      max-width: 960px;
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    input {
+      flex: 1;
+      padding: 10px 12px;
+      border-radius: 6px;
+      border: 1px solid #333;
+      background: #1e1e1e;
+      color: #fff;
+      font-size: 14px;
+    }
+    button {
+      padding: 10px 18px;
+      border-radius: 6px;
+      border: none;
+      background: #2563eb;
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:hover { background: #1d4ed8; }
+    video {
+      width: 90%;
+      max-width: 960px;
+      background: #000;
+      border-radius: 8px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+    }
+    #status {
+      margin-top: 10px;
+      font-size: 13px;
+      color: #aaa;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="controls">
+    <input type="text" id="urlInput" placeholder="Enter .flv URL (or pass ?url=... in the address bar)" />
+    <button onclick="loadFromInput()">Play</button>
+  </div>
+
+  <video id="videoElement" controls autoplay muted></video>
+  <div id="status">Ready.</div>
+
+  <script>
+    const videoElement = document.getElementById('videoElement');
+    const urlInput = document.getElementById('urlInput');
+    const statusEl = document.getElementById('status');
+    let player = null;
+
+    function playFlv(streamUrl, isLive = false) {
+      if (!streamUrl) return;
+
+      if (!mpegts.getFeatureList().mseLivePlayback) {
+        statusEl.textContent = 'Error: Your browser does not support Media Source Extensions (MSE).';
+        return;
+      }
+
+      // Clean up any existing player instance
+      if (player) {
+        player.pause();
+        player.unload();
+        player.detachMediaElement();
+        player.destroy();
+        player = null;
+      }
+
+      statusEl.textContent = 'Loading: ' + streamUrl;
+
+      player = mpegts.createPlayer({
+        type: 'flv',
+        isLive: isLive,
+        url: streamUrl
+      });
+
+      player.attachMediaElement(videoElement);
+      player.load();
+      player.play().catch(() => {
+        statusEl.textContent = 'Loaded. Click play on the video if autoplay was blocked.';
+      });
+
+      player.on(mpegts.Events.ERROR, (errType, errDetail) => {
+        statusEl.textContent = `Playback Error (${errType}): ${errDetail}. Check CORS or stream URL.`;
+      });
+    }
+
+    function loadFromInput() {
+      const val = urlInput.value.trim();
+      if (!val) return;
+      // Update browser URL without reloading the page
+      const newUrl = new URL(window.location);
+      newUrl.searchParams.set('url', val);
+      window.history.pushState({}, '', newUrl);
+      playFlv(val);
+    }
+
+    // Parse URL parameters on page load
+    const params = new URLSearchParams(window.location.search);
+    const initialUrl = params.get('url');
+    const isLiveParam = params.get('live') === 'true';
+
+    if (initialUrl) {
+      urlInput.value = initialUrl;
+      playFlv(initialUrl, isLiveParam);
+    }
+  </script>
+</body>
+</html>
