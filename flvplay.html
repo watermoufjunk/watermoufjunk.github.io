@@ -3,69 +3,76 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FLV Web Player</title>
+  <title>Simple FLV Web Player</title>
   <script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.7.3/dist/mpegts.min.js"></script>
   <style>
     body {
       margin: 0;
-      background: #111;
-      color: #eee;
-      font-family: system-ui, -apple-system, sans-serif;
+      background: #0d1117;
+      color: #c9d1d9;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       min-height: 100vh;
     }
-    .controls {
+    .wrapper {
       width: 90%;
       max-width: 960px;
       display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .controls {
+      display: flex;
       gap: 8px;
-      margin-bottom: 12px;
     }
     input {
       flex: 1;
-      padding: 10px 12px;
-      border-radius: 6px;
-      border: 1px solid #333;
-      background: #1e1e1e;
+      padding: 12px 16px;
+      border-radius: 8px;
+      border: 1px solid #30363d;
+      background: #161b22;
       color: #fff;
-      font-size: 14px;
+      font-size: 15px;
+      outline: none;
     }
+    input:focus { border-color: #58a6ff; }
     button {
-      padding: 10px 18px;
-      border-radius: 6px;
+      padding: 12px 24px;
+      border-radius: 8px;
       border: none;
-      background: #2563eb;
+      background: #238636;
       color: #fff;
       font-weight: 600;
       cursor: pointer;
+      font-size: 15px;
     }
-    button:hover { background: #1d4ed8; }
+    button:hover { background: #2ea043; }
     video {
-      width: 90%;
-      max-width: 960px;
+      width: 100%;
       background: #000;
-      border-radius: 8px;
-      box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+      aspect-ratio: 16/9;
     }
     #status {
-      margin-top: 10px;
-      font-size: 13px;
-      color: #aaa;
+      font-size: 14px;
+      color: #8b949e;
     }
   </style>
 </head>
 <body>
 
-  <div class="controls">
-    <input type="text" id="urlInput" placeholder="Enter .flv URL (or pass ?url=... in the address bar)" />
-    <button onclick="loadFromInput()">Play</button>
+  <div class="wrapper">
+    <div class="controls">
+      <input type="text" id="urlInput" placeholder="Paste .flv URL here (or use ?url=...)" />
+      <button onclick="loadStream()">Play</button>
+    </div>
+    <video id="videoElement" controls autoplay></video>
+    <div id="status">Ready. Paste a link or pass it via URL parameters.</div>
   </div>
-
-  <video id="videoElement" controls autoplay muted></video>
-  <div id="status">Ready.</div>
 
   <script>
     const videoElement = document.getElementById('videoElement');
@@ -73,15 +80,9 @@
     const statusEl = document.getElementById('status');
     let player = null;
 
-    function playFlv(streamUrl, isLive = false) {
-      if (!streamUrl) return;
+    function playFlv(rawUrl) {
+      if (!rawUrl) return;
 
-      if (!mpegts.getFeatureList().mseLivePlayback) {
-        statusEl.textContent = 'Error: Your browser does not support Media Source Extensions (MSE).';
-        return;
-      }
-
-      // Clean up any existing player instance
       if (player) {
         player.pause();
         player.unload();
@@ -90,43 +91,51 @@
         player = null;
       }
 
-      statusEl.textContent = 'Loading: ' + streamUrl;
+      // Automatically wrap external stream URLs through a public CORS proxy 
+      // to bypass connection resets and CDN restrictions, just like online players do.
+      const targetUrl = rawUrl.startsWith('http') && !rawUrl.includes('corsproxy.io') 
+        ? 'https://corsproxy.io/?' + encodeURIComponent(rawUrl) 
+        : rawUrl;
+
+      statusEl.textContent = 'Connecting to stream...';
 
       player = mpegts.createPlayer({
         type: 'flv',
-        isLive: isLive,
-        url: streamUrl
+        isLive: true,
+        url: targetUrl
+      }, {
+        enableStashBuffer: false,
+        liveBufferLatencyChasing: true
       });
 
       player.attachMediaElement(videoElement);
       player.load();
-      player.play().catch(() => {
-        statusEl.textContent = 'Loaded. Click play on the video if autoplay was blocked.';
+      player.play().then(() => {
+        statusEl.textContent = 'Stream playing successfully.';
+      }).catch(err => {
+        statusEl.textContent = 'Playback initialized. Click play on the video player if autoplay was restricted.';
       });
 
       player.on(mpegts.Events.ERROR, (errType, errDetail) => {
-        statusEl.textContent = `Playback Error (${errType}): ${errDetail}. Check CORS or stream URL.`;
+        statusEl.textContent = `Error: ${errType} - ${errDetail}`;
       });
     }
 
-    function loadFromInput() {
+    function loadStream() {
       const val = urlInput.value.trim();
       if (!val) return;
-      // Update browser URL without reloading the page
       const newUrl = new URL(window.location);
       newUrl.searchParams.set('url', val);
       window.history.pushState({}, '', newUrl);
       playFlv(val);
     }
 
-    // Parse URL parameters on page load
+    // Automatically read and play from URL query parameters on page load
     const params = new URLSearchParams(window.location.search);
     const initialUrl = params.get('url');
-    const isLiveParam = params.get('live') === 'true';
-
     if (initialUrl) {
       urlInput.value = initialUrl;
-      playFlv(initialUrl, isLiveParam);
+      playFlv(initialUrl);
     }
   </script>
 </body>
